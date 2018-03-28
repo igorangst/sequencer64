@@ -164,6 +164,7 @@ libseq64_la_SOURCES = \
    midifile.cpp \
    midi_container.cpp \
    midi_control.cpp \
+   midi_control_out.cpp \
    midi_list.cpp \
    midi_splitter.cpp \
    midi_vector.cpp \

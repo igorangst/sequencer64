@@ -1023,6 +1023,9 @@ sequence::toggle_queued ()
 {
     automutex locker(m_mutex);
     m_queued = ! m_queued;
+#ifdef SEQ64_MIDI_CTRL_OUT
+    printf("%s <%s>\n", m_queued ? "queue" : "unqueue", m_name.c_str());
+#endif
     m_queued_tick = m_last_tick - mod_last_tick() + m_length;
 #ifdef SEQ64_SONG_RECORDING
     m_off_from_snap = true;
@@ -1044,6 +1047,9 @@ sequence::toggle_queued ()
 void
 sequence::off_queued ()
 {
+#ifdef SEQ64_MIDI_CTRL_OUT
+  printf("unqueue <%s>\n", m_name.c_str());
+#endif
     automutex locker(m_mutex);
     m_queued = false;
 #ifdef SEQ64_SONG_RECORDING
@@ -1065,6 +1071,9 @@ sequence::off_queued ()
 void
 sequence::on_queued ()
 {
+#ifdef SEQ64_MIDI_CTRL_OUT
+  printf("queue <%s>\n", m_name.c_str());
+#endif
     automutex locker(m_mutex);
     m_queued = true;
     set_dirty_mp();
@@ -4758,6 +4767,9 @@ sequence::extend (midipulse len)
 void
 sequence::set_playing (bool p)
 {
+#ifdef SEQ64_MIDI_CTRL_OUT
+  printf("%s <%s>\n", p ? "play" : "stop", m_name.c_str());
+#endif
     automutex locker(m_mutex);
     if (p != get_playing())
     {
