@@ -772,6 +772,22 @@ else
     AC_MSG_NOTICE([Main patterns-panel scrollbars disabled.]);
 fi
 
+dnl Support for MIDI control ouput. If enabled, the macro
+dnl SEQ64_MIDI_CTRL_OUTPUT is defined.
+
+AC_ARG_ENABLE(midictrlout,
+    [AS_HELP_STRING(--enable-midictrlout, [Enable MIDI control output])],
+    [midictrlout=$enableval],
+    [midictrlout=no])
+
+if test "$midictrlout" != "no"; then
+    AC_DEFINE(MIDI_CTRL_OUT, 1, [Define to enable MIDI control output])
+    AC_MSG_RESULT([MIDI control output enabled.]);
+else
+    AC_MSG_NOTICE([MIDI control output disabled.]);
+fi
+
+
 AM_CONDITIONAL([BUILD_ALSAMIDI], [test "$build_alsamidi" = "yes"])
 AM_CONDITIONAL([BUILD_QTMIDI], [test "$build_qtmidi" = "yes"])
 AM_CONDITIONAL([BUILD_RTMIDI], [test "$build_rtmidi" = "yes"])
