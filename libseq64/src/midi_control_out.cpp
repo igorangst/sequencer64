@@ -44,13 +44,15 @@
 namespace seq64
 {
 
-midi_control_out::midi_control_out (midibus* out_bus)
+midi_control_out::midi_control_out (mastermidibus *mmbus, bussbyte buss, midibyte channel)
     :
-    m_out_bus(out_bus)
+    m_mmbus(mmbus),
+    m_buss(buss),
+    m_channel(channel)    
 {
     for (int i=0; i<32; ++i)
     {
-	for (int a=0; a<action_max; ++i)
+	for (int a=0; a<action_max; ++a)
 	{
 	    m_seq_event[i][a] = NULL;
 	}
@@ -58,24 +60,28 @@ midi_control_out::midi_control_out (midibus* out_bus)
 }
 
     
-midi_control_out::send_seq_event(int seq, action what)
+void midi_control_out::send_seq_event(int seq, action what)
 {
-    
-    event *e = m_seq_event[seq][what];
-    if (not_nullptr(e))
+    if (seq < 0 || seq >= 32)
     {
-	// FIXME
+	return;
+    } else {
+	event *ev = m_seq_event[seq][what];
+	if (not_nullptr(ev))
+	{
+	    m_mmbus->play(m_buss, ev, m_channel);
+	}
     }
 }
 
     
-midi_control_out::set_seq_event(int seq, action what, event *ev)
+void midi_control_out::set_seq_event(int seq, action what, event *ev)
 {
     m_seq_event[seq][what] = ev;
 }
     
 
-midi_control_out::seq_event_is_active(int seq, action what)
+bool midi_control_out::seq_event_is_active(int seq, action what)
 {
     if (seq < 0 || seq >= 32)
     {

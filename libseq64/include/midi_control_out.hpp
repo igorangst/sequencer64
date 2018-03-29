@@ -39,6 +39,7 @@
  */
 
 #include "globals.h"
+#include "mastermidibus.hpp"
 #include "event.hpp"
 
 /*
@@ -88,10 +89,20 @@ public:
 private:
 
     /**
-     *  Provides the MIDI output bus.
+     *  Provides the MIDI output master bus.
      */
-    midibus* m_out_bus;
-    
+    mastermidibus* m_mmbus;
+
+    /**
+     *  Provides the MIDI output buss.
+     */
+    bussbyte m_buss;
+
+    /**
+     *  Provides the MIDI output channel.
+     */
+    midibyte m_channel;
+       
     /**
      *  Provides the events to be sent out for sequence status changes.
      */
@@ -99,7 +110,7 @@ private:
 
 public:
 
-    midi_control_out(midibus *out_bus);
+    midi_control_out(mastermidibus *mmbus, bussbyte buss, midibyte channel);
     
     /** 
      * Send out notification about playing status of a sequence.
@@ -141,7 +152,7 @@ private:
      *      Returns true if the respective event is active.
      */
     bool seq_event_is_active(int seq, action what);
-}
+};
 
 }
 

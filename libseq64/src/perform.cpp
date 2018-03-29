@@ -313,6 +313,9 @@ perform::perform (gui_assistant & mygui, int ppqn)
     m_midi_cc_on                (),         // midi_control []
     m_midi_cc_off               (),         // midi_control []
     m_control_status            (0),
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_midi_ctrl_out             (nullptr),
+#endif
     m_screenset                 (0),        // vice m_playscreen
     m_screenset_offset          (0),
     m_playscreen                (0),        // vice m_screenset
@@ -2338,6 +2341,19 @@ perform::midi_control_off (int ctl)
 {
     return valid_midi_control_seq(ctl) ? m_midi_cc_off[ctl] : sm_mc_dummy ;
 }
+
+
+#ifdef SEQ64_MIDI_CTRL_OUT
+/**
+ *  Set the MIDI control output object
+ */
+void
+perform::set_midi_ctrl_out(midi_control_out *ctrl_out)
+{
+    m_midi_ctrl_out = ctrl_out;
+}
+#endif
+
 
 /**
  *  Copies the given string into m_screenset_notepad[].

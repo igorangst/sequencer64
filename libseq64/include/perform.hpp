@@ -59,6 +59,7 @@
 #include "keys_perform.hpp"             /* seq64::keys_perform              */
 #include "mastermidibus.hpp"            /* seq64::mastermidibus for ALSA    */
 #include "midi_control.hpp"             /* seq64::midi_control "struct"     */
+#include "midi_control_out.hpp"         /* seq64::midi_control_out          */
 #include "sequence.hpp"                 /* seq64::sequence                  */
 
 #ifdef SEQ64_SONG_BOX_SELECT
@@ -927,6 +928,16 @@ private:
 
     midi_control m_midi_cc_off[c_midi_controls_extended];
 
+
+#ifdef SEQ64_MIDI_CTRL_OUT
+
+    /**
+     *  Provides the class encapsulating MIDI control output.
+     */
+    midi_control_out *m_midi_ctrl_out;
+    
+#endif
+    
     /**
      *  Holds the OR'ed control status values.  Need to learn more about this
      *  one.  It is used in the replace, snapshot, and queue functionality.
@@ -2711,6 +2722,9 @@ private:
     void select_and_mute_group (int g_group);
     void set_song_mute (mute_op_t op);
     void set_playing_screenset ();
+#ifdef SEQ64_MIDI_CTRL_OUT
+    void set_midi_ctrl_out(midi_control_out *ctrl_out);
+#endif
 
     /**
      * \setter m_mode_group
