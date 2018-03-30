@@ -44,17 +44,18 @@
 namespace seq64
 {
 
-midi_control_out::midi_control_out (mastermidibus *mmbus, bussbyte buss, midibyte channel)
+midi_control_out::midi_control_out (mastermidibus *mmbus, bussbyte buss)
     :
     m_mmbus(mmbus),
-    m_buss(buss),
-    m_channel(channel)    
+    m_buss(buss)
 {
+    event dummy_e;
     for (int i=0; i<32; ++i)
-    {
+    {	
 	for (int a=0; a<action_max; ++a)
 	{
-	    m_seq_event[i][a] = NULL;
+	    m_seq_event[i][a] = dummy_e;
+	    m_seq_active[i][a] = false;
 	}
     }
 }
@@ -66,28 +67,40 @@ void midi_control_out::send_seq_event(int seq, action what)
     {
 	return;
     } else {
-	event *ev = m_seq_event[seq][what];
-	if (not_nullptr(ev))
+	if (!m_seq_active[seq][what])
 	{
-	    m_mmbus->play(m_buss, ev, m_channel);
+	    return;
 	}
+	event ev = m_seq_event[seq][what];
+	m_mmbus->play(m_buss, &ev, ev.get_channel());
     }
 }
 
+event midi_control_out::get_seq_event(int seq, action what) const
+{
+    if (seq < 0 || seq >= 32)
+    {
+	event dummy_event;
+	return dummy_event;
+    } else {
+	return m_seq_event[seq][what];
+    }
+}   
     
-void midi_control_out::set_seq_event(int seq, action what, event *ev)
+void midi_control_out::set_seq_event(int seq, action what, event& ev)
 {
     m_seq_event[seq][what] = ev;
+    m_seq_active[seq][what] = true;
 }
     
 
-bool midi_control_out::seq_event_is_active(int seq, action what)
+bool midi_control_out::seq_event_is_active(int seq, action what) const
 {
     if (seq < 0 || seq >= 32)
     {
 	return false;
     } else {
-	return not_nullptr(m_seq_event[seq][what]);
+	return m_seq_active[seq][what];
     }
 }
 

@@ -49,6 +49,8 @@
 namespace seq64
 {
 
+
+    
 class midi_control_out
 {
 public:
@@ -99,18 +101,14 @@ private:
     bussbyte m_buss;
 
     /**
-     *  Provides the MIDI output channel.
-     */
-    midibyte m_channel;
-       
-    /**
      *  Provides the events to be sent out for sequence status changes.
      */
-    event* m_seq_event[32][action_max];
+    event m_seq_event[32][action_max];
+    bool  m_seq_active[32][action_max];
 
 public:
 
-    midi_control_out(mastermidibus *mmbus, bussbyte buss, midibyte channel);
+    midi_control_out(mastermidibus *mmbus, bussbyte buss);
     
     /** 
      * Send out notification about playing status of a sequence.
@@ -124,6 +122,20 @@ public:
     void send_seq_event(int seq, action what);
 
     /** 
+     * Getter for sequence action events.
+     *
+     * \param seq
+     *      The index of the sequence.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \returns
+     *      The MIDI event to be sent.
+     */
+    event get_seq_event(int seq, action what) const;
+
+    /** 
      * Register a MIDI event for a given sequence action.
      *
      * \param seq
@@ -135,9 +147,7 @@ public:
      * \param event
      *      The MIDI event to be sent.
      */
-    void set_seq_event(int seq, action what, event *ev);
-
-private:
+    void set_seq_event(int seq, action what, event& ev);
 
     /** 
      * Checks if a sequence status event is active.
@@ -151,7 +161,7 @@ private:
      * \return 
      *      Returns true if the respective event is active.
      */
-    bool seq_event_is_active(int seq, action what);
+    bool seq_event_is_active(int seq, action what) const;
 };
 
 }

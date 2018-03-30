@@ -1355,6 +1355,14 @@ perform::mute_all_tracks (bool flag)
         {
             m_seqs[i]->set_song_mute(flag);
             m_seqs[i]->set_playing(! flag);         /* to show mute status  */
+#ifdef SEQ64_MIDI_CTRL_OUT
+	    if (!flag)
+	    {
+		m_midi_ctrl_out->send_seq_event(i, midi_control_out::action_play);
+	    } else {
+		m_midi_ctrl_out->send_seq_event(i, midi_control_out::action_mute);
+	    }
+#endif	    
         }
     }
 }
@@ -1787,6 +1795,10 @@ perform::delete_sequence (int seq)
             delete m_seqs[seq];
             m_seqs[seq] = nullptr;
             modify();                               /* it is dirty, man     */
+#ifdef SEQ64_MIDI_CTRL_OUT
+	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::action_mute);
+	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::action_delete);
+#endif
         }
     }
 }
@@ -3141,7 +3153,13 @@ perform::off_sequences ()
     for (int s = 0; s < m_sequence_high; ++s)       /* modest speed-up */
     {
         if (is_active(s))
+	{
             m_seqs[s]->set_playing(false);
+#ifdef SEQ64_MIDI_CTRL_OUT
+	    m_midi_ctrl_out->send_seq_event(s, midi_control_out::action_mute);
+#endif
+	    
+	}
     }
 }
 

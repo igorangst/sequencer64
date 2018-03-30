@@ -370,7 +370,7 @@ optionsfile::parse (perform & p)
 
     line_after(file, "[midi-control-out]");    
     sscanf(m_line, "%u", &sequences);
-    midi_control_out *mctrl = new midi_control_out(p.m_master_bus, 15, 0);
+    midi_control_out *mctrl = new midi_control_out(p.m_master_bus, 15);
     for (unsigned i=0; i<sequences; ++i)
     {
 	if (!next_data_line(file))
@@ -395,7 +395,49 @@ optionsfile::parse (perform & p)
 	    &e[0], &e[1], &e[2], &e[3], &e[4],
 	    &f[0], &f[1], &f[2], &f[3], &f[4]
 	    );
-	
+	event ae, be, ce, de, ee, fe;
+	if (a[0])
+	{
+	    ae.set_channel(a[1]);
+	    ae.set_status(a[2]);
+	    ae.set_data(a[3], a[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_play, ae);
+	}
+	if (b[0])
+	{
+	    be.set_channel(b[1]);
+	    be.set_status(b[2]);
+	    be.set_data(b[3], b[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_mute, be);
+	}
+	if (c[0])
+	{
+	    ce.set_channel(c[1]);
+	    ce.set_status(c[2]);
+	    ce.set_data(c[3], c[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_queue, ce);
+	}
+	if (d[0])
+	{
+	    de.set_channel(d[1]);
+	    de.set_status(d[2]);
+	    de.set_data(d[3], d[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_unqueue, de);
+	}
+	if (e[0])
+	{
+	    ee.set_channel(e[1]);
+	    ee.set_status(e[2]);
+	    ee.set_data(e[3], e[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_activate, ae);
+	}
+	if (f[0])
+	{
+	    fe.set_channel(f[1]);
+	    fe.set_status(f[2]);
+	    fe.set_data(f[3], f[4]);
+	    mctrl->set_seq_event(i, midi_control_out::action_delete, fe);
+	}
     }
     p.set_midi_ctrl_out(mctrl);
 
@@ -1189,6 +1231,47 @@ optionsfile::write (const perform & p)
         file << std::string(outs) << "\n";
     }
 
+#ifdef SEQ64_MIDI_CTRL_OUT
+
+    file <<
+	"\n[midi-control-out]\n"
+	"\n"
+	"#    ------------------- on/off (indicate is the section is enabled)\n"
+	"#    | ----------------- MIDI channel (0-15)\n"
+	"#    | | --------------- MIDI status (event) byte (e.g. note on)\n"
+	"#    | | | ------------- data 1 (e.g. note number)\n"
+	"#    | | | | ----------- data 2\n"
+	"#    | | | | |\n"
+	"#    v v v v v\n"
+	"#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
+	"#       Play         Mute       Queue      Unqueue      Load       Delete\n"
+	"\n"
+	"32 # Number of sequences\n\n";
+
+    for (int seq=0; seq<32; ++seq)
+    {
+	file << seq;
+	for (int a=0; a<midi_control_out::action_max; ++a)
+	{
+	    if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::action)a))
+	    {
+		event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::action)a);
+		midibyte d0, d1;		
+		ev.get_data(d0, d1);
+		file << " [1 "
+		    << (unsigned)ev.get_channel() << " "
+		    << (unsigned)ev.get_status() << " "
+		    << (unsigned)d0 << " "
+		    << (unsigned)d1 << "]";
+	    } else {
+		file << " [0 0 0 0 0]";
+	    }		    
+	}
+	file << "\n";
+    }
+    
+#endif
+    
     /*
      * Group MIDI control
      *
