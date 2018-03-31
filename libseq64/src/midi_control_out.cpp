@@ -44,10 +44,12 @@
 namespace seq64
 {
 
-midi_control_out::midi_control_out (mastermidibus *mmbus, bussbyte buss)
+
+
+midi_control_out::midi_control_out ()
     :
-    m_mmbus(mmbus),
-    m_buss(buss)
+    m_master_bus(nullptr),
+    m_buss(15)
 {
     event dummy_e;
     for (int i=0; i<32; ++i)
@@ -63,6 +65,8 @@ midi_control_out::midi_control_out (mastermidibus *mmbus, bussbyte buss)
     
 void midi_control_out::send_seq_event(int seq, action what)
 {
+  printf("[ctrl-out] %i (%i)\n", seq, (int)what);
+  
     if (seq < 0 || seq >= 32)
     {
 	return;
@@ -72,7 +76,11 @@ void midi_control_out::send_seq_event(int seq, action what)
 	    return;
 	}
 	event ev = m_seq_event[seq][what];
-	m_mmbus->play(m_buss, &ev, ev.get_channel());
+	if (not_nullptr(m_master_bus))
+	{
+	    m_master_bus->play(m_buss, &ev, ev.get_channel());
+	    m_master_bus->flush();
+	}
     }
 }
 
@@ -89,6 +97,7 @@ event midi_control_out::get_seq_event(int seq, action what) const
     
 void midi_control_out::set_seq_event(int seq, action what, event& ev)
 {
+  printf("[set_seq_event] %i %i\n", seq, (int)what);
     m_seq_event[seq][what] = ev;
     m_seq_active[seq][what] = true;
 }

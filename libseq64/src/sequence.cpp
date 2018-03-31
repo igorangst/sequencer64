@@ -1023,14 +1023,14 @@ sequence::toggle_queued ()
 {
     automutex locker(m_mutex);
     m_queued = ! m_queued;
-#ifdef SEQ64_MIDI_CTRL_OUT
-    printf("%s <%s>\n", m_queued ? "queue" : "unqueue", m_name.c_str());
-#endif
     m_queued_tick = m_last_tick - mod_last_tick() + m_length;
 #ifdef SEQ64_SONG_RECORDING
     m_off_from_snap = true;
 #endif
     set_dirty_mp();
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_parent->get_midi_control_out()->send_seq_event(number(), m_queued ? midi_control_out::action_queue : midi_control_out::action_unqueue);
+#endif
 }
 
 #ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
@@ -1047,15 +1047,16 @@ sequence::toggle_queued ()
 void
 sequence::off_queued ()
 {
-#ifdef SEQ64_MIDI_CTRL_OUT
-  printf("unqueue <%s>\n", m_name.c_str());
-#endif
     automutex locker(m_mutex);
     m_queued = false;
 #ifdef SEQ64_SONG_RECORDING
     m_off_from_snap = true;
 #endif
     set_dirty_mp();
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_unqueue);
+#endif
+
 }
 
 /**
@@ -1071,12 +1072,13 @@ sequence::off_queued ()
 void
 sequence::on_queued ()
 {
-#ifdef SEQ64_MIDI_CTRL_OUT
-  printf("queue <%s>\n", m_name.c_str());
-#endif
     automutex locker(m_mutex);
     m_queued = true;
     set_dirty_mp();
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_queue);
+#endif
+
 }
 
 #endif  // SEQ64_USE_AUTO_SCREENSET_QUEUE
@@ -1206,7 +1208,9 @@ sequence::play
         }
     }
     if (trigger_turning_off)                        /* triggers: "turn off" */
-        set_playing(false);
+    {
+	    set_playing(false);
+    }
 
     m_last_tick = end_tick + 1;                     /* for next frame       */
     m_was_playing = m_playing;
@@ -4767,21 +4771,28 @@ sequence::extend (midipulse len)
 void
 sequence::set_playing (bool p)
 {
-#ifdef SEQ64_MIDI_CTRL_OUT
-  printf("%s <%s>\n", p ? "play" : "stop", m_name.c_str());
-#endif
     automutex locker(m_mutex);
+#ifdef SEQ64_MIDI_CTRL_OUT
+    bool send_unqueue = m_queued;
+    bool send_play = p ^ get_playing();
+#endif
     if (p != get_playing())
     {
         m_playing = p;
         if (! p)
             off_playing_notes();
-
+	
         set_dirty();
     }
     m_queued = false;
 #ifdef SEQ64_SONG_RECORDING
     m_one_shot = false;
+#endif
+#ifdef SEQ64_MIDI_CTRL_OUT
+    if (send_unqueue)
+	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_unqueue);
+    if (send_play)
+	m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::action_play : midi_control_out::action_mute);
 #endif
 }
 

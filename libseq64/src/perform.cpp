@@ -437,6 +437,9 @@ perform::create_master_bus ()
         {
             m_master_bus->filter_by_channel(m_filter_by_channel);
             m_master_bus->port_settings(m_master_clocks, m_master_inputs);
+#ifdef SEQ64_MIDI_CTRL_OUT
+	    m_midi_ctrl_out->set_master_bus(m_master_bus);
+#endif
         }
     }
     return result;
@@ -1355,14 +1358,6 @@ perform::mute_all_tracks (bool flag)
         {
             m_seqs[i]->set_song_mute(flag);
             m_seqs[i]->set_playing(! flag);         /* to show mute status  */
-#ifdef SEQ64_MIDI_CTRL_OUT
-	    if (!flag)
-	    {
-		m_midi_ctrl_out->send_seq_event(i, midi_control_out::action_play);
-	    } else {
-		m_midi_ctrl_out->send_seq_event(i, midi_control_out::action_mute);
-	    }
-#endif	    
         }
     }
 }
@@ -1384,7 +1379,7 @@ perform::toggle_all_tracks ()
         {
             m_seqs[i]->toggle_song_mute();
             m_seqs[i]->toggle_playing();        /* needed to show mute status */
-        }
+	}
     }
 }
 
@@ -1657,6 +1652,10 @@ perform::install_sequence (sequence * seq, int seqnum)
             m_sequence_high = seqnum + 1;
 
         result = true;                  /* a modification occurred  */
+#ifdef SEQ64_MIDI_CTRL_OUT
+	m_midi_ctrl_out->send_seq_event(seqnum, midi_control_out::action_activate);
+#endif	    		  
+
     }
     return result;
 }
@@ -3155,9 +3154,6 @@ perform::off_sequences ()
         if (is_active(s))
 	{
             m_seqs[s]->set_playing(false);
-#ifdef SEQ64_MIDI_CTRL_OUT
-	    m_midi_ctrl_out->send_seq_event(s, midi_control_out::action_mute);
-#endif
 	    
 	}
     }
@@ -5372,7 +5368,9 @@ perform::restore_playing_state ()
     for (int s = 0; s < m_sequence_high; ++s)       /* modest speed-up */
     {
         if (is_active(s))
+	  {
             m_seqs[s]->set_playing(m_sequence_state[s]);
+	  }
     }
 }
 
@@ -5674,16 +5672,21 @@ perform::sequence_playing_change (int seq, bool on)
         {
             if (q_in_progress)
             {
-                if (! queued)
-                    s->toggle_queued();
+	      if (! queued)
+		{
+		  s->toggle_queued();
+		}
             }
             else
+	    {
                 s->set_playing(on);
+	    }
         }
         else
         {
-            if (queued && q_in_progress)
-                s->toggle_queued();
+	  if (queued && q_in_progress) {
+	    s->toggle_queued();
+	  }
         }
     }
 }

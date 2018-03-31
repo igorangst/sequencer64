@@ -49,7 +49,7 @@
 namespace seq64
 {
 
-
+class perform;
     
 class midi_control_out
 {
@@ -93,7 +93,7 @@ private:
     /**
      *  Provides the MIDI output master bus.
      */
-    mastermidibus* m_mmbus;
+    mastermidibus* m_master_bus;
 
     /**
      *  Provides the MIDI output buss.
@@ -108,8 +108,13 @@ private:
 
 public:
 
-    midi_control_out(mastermidibus *mmbus, bussbyte buss);
-    
+    midi_control_out();
+
+  void set_master_bus(mastermidibus* mmbus)
+  {
+    m_master_bus = mmbus;
+  }
+  
     /** 
      * Send out notification about playing status of a sequence.
      *

@@ -2724,6 +2724,9 @@ private:
     void set_playing_screenset ();
 #ifdef SEQ64_MIDI_CTRL_OUT
     void set_midi_ctrl_out(midi_control_out *ctrl_out);
+    midi_control_out* get_midi_control_out() const {
+	return m_midi_ctrl_out;
+    }
 #endif
 
     /**

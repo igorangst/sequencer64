@@ -370,7 +370,7 @@ optionsfile::parse (perform & p)
 
     line_after(file, "[midi-control-out]");    
     sscanf(m_line, "%u", &sequences);
-    midi_control_out *mctrl = new midi_control_out(p.m_master_bus, 15);
+    midi_control_out *mctrl = new midi_control_out();
     for (unsigned i=0; i<sequences; ++i)
     {
 	if (!next_data_line(file))
@@ -429,7 +429,7 @@ optionsfile::parse (perform & p)
 	    ee.set_channel(e[1]);
 	    ee.set_status(e[2]);
 	    ee.set_data(e[3], e[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_activate, ae);
+	    mctrl->set_seq_event(i, midi_control_out::action_activate, ee);
 	}
 	if (f[0])
 	{
