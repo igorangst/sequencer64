@@ -312,10 +312,10 @@ perform::perform (gui_assistant & mygui, int ppqn)
     m_midi_cc_toggle            (),         // midi_control []
     m_midi_cc_on                (),         // midi_control []
     m_midi_cc_off               (),         // midi_control []
-    m_control_status            (0),
 #ifdef SEQ64_MIDI_CTRL_OUT
     m_midi_ctrl_out             (nullptr),
 #endif
+    m_control_status            (0),
     m_screenset                 (0),        // vice m_playscreen
     m_screenset_offset          (0),
     m_playscreen                (0),        // vice m_screenset
@@ -438,7 +438,17 @@ perform::create_master_bus ()
             m_master_bus->filter_by_channel(m_filter_by_channel);
             m_master_bus->port_settings(m_master_clocks, m_master_inputs);
 #ifdef SEQ64_MIDI_CTRL_OUT
-	    m_midi_ctrl_out->set_master_bus(m_master_bus);
+	    if (not_nullptr(m_midi_ctrl_out))
+	    {
+		m_midi_ctrl_out->set_master_bus(m_master_bus);
+	    } else {
+
+		// FIXME: We get here if the optionsfile was missing,
+		// is there any other case? Let's create a dummy
+		// object for the MIDI control outputs...
+		m_midi_ctrl_out = new midi_control_out();
+		m_midi_ctrl_out->set_master_bus(m_master_bus);
+	    }
 #endif
         }
     }
@@ -2362,6 +2372,8 @@ void
 perform::set_midi_ctrl_out(midi_control_out *ctrl_out)
 {
     m_midi_ctrl_out = ctrl_out;
+    if (not_nullptr(m_master_bus))
+	m_midi_ctrl_out->set_master_bus(m_master_bus);
 }
 #endif
 

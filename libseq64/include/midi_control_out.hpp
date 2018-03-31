@@ -110,10 +110,10 @@ public:
 
     midi_control_out();
 
-  void set_master_bus(mastermidibus* mmbus)
-  {
-    m_master_bus = mmbus;
-  }
+    void set_master_bus(mastermidibus* mmbus)
+    {
+	m_master_bus = mmbus;
+    }
   
     /** 
      * Send out notification about playing status of a sequence.
