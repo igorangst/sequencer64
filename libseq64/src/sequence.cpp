@@ -1029,7 +1029,15 @@ sequence::toggle_queued ()
 #endif
     set_dirty_mp();
 #ifdef SEQ64_MIDI_CTRL_OUT
-    m_parent->get_midi_control_out()->send_seq_event(number(), m_queued ? midi_control_out::action_queue : midi_control_out::action_unqueue);
+    if (m_queued)
+    {
+	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_queue);
+    } else if (get_playing()) {
+	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_play);
+    } else {
+	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_mute);
+    }
+    
 #endif
 }
 
@@ -4773,7 +4781,6 @@ sequence::set_playing (bool p)
 {
     automutex locker(m_mutex);
 #ifdef SEQ64_MIDI_CTRL_OUT
-    bool send_unqueue = m_queued;
     bool send_play = p ^ get_playing();
 #endif
     if (p != get_playing())
@@ -4789,8 +4796,6 @@ sequence::set_playing (bool p)
     m_one_shot = false;
 #endif
 #ifdef SEQ64_MIDI_CTRL_OUT
-    if (send_unqueue)
-	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_unqueue);
     if (send_play)
 	m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::action_play : midi_control_out::action_mute);
 #endif

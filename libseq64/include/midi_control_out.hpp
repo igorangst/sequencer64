@@ -67,12 +67,6 @@ public:
      * \var action_queue
      *      Sequence is queued.
      *
-     * \var action_unqueue
-     *      Sequence is unqueued.
-     * 
-     * \var action_activate
-     *      Sequence is loaded or created.
-     *
      * \var action_delete
      *      Sequence is deleted from its slot.
      */
@@ -82,10 +76,8 @@ public:
 	action_play     = 0,
 	action_mute     = 1,
 	action_queue    = 2,
-	action_unqueue  = 3,
-	action_activate = 4,
-	action_delete   = 5,
-	action_max      = 6
+	action_delete   = 3,
+	action_max      = 4
     } action;
     
 private:

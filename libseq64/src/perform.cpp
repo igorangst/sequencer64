@@ -1662,9 +1662,9 @@ perform::install_sequence (sequence * seq, int seqnum)
             m_sequence_high = seqnum + 1;
 
         result = true;                  /* a modification occurred  */
-#ifdef SEQ64_MIDI_CTRL_OUT
-	m_midi_ctrl_out->send_seq_event(seqnum, midi_control_out::action_activate);
-#endif	    		  
+// #ifdef SEQ64_MIDI_CTRL_OUT
+// 	m_midi_ctrl_out->send_seq_event(seqnum, midi_control_out::action_activate);
+// #endif	    		  
 
     }
     return result;

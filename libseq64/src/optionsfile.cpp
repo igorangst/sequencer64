@@ -377,13 +377,11 @@ optionsfile::parse (perform & p)
 	{
 	    return error_message("midi-control-out", "no data");
 	}	
-	int a[5], b[5], c[5], d[5], e[5], f[5];
+	int a[5], b[5], c[5], d[5];
 	int sequence = 0;
 	sscanf(
 	    m_line,
 	    "%d [ %d %d %d %d %d ]"
-	    " [ %d %d %d %d %d ]"
-	    " [ %d %d %d %d %d ]"
 	    " [ %d %d %d %d %d ]"
 	    " [ %d %d %d %d %d ]"
 	    " [ %d %d %d %d %d ]",
@@ -391,11 +389,9 @@ optionsfile::parse (perform & p)
 	    &a[0], &a[1], &a[2], &a[3], &a[4],
 	    &b[0], &b[1], &b[2], &b[3], &b[4],
 	    &c[0], &c[1], &c[2], &c[3], &c[4],
-	    &d[0], &d[1], &d[2], &d[3], &d[4],
-	    &e[0], &e[1], &e[2], &e[3], &e[4],
-	    &f[0], &f[1], &f[2], &f[3], &f[4]
+	    &d[0], &d[1], &d[2], &d[3], &d[4]
 	    );
-	event ae, be, ce, de, ee, fe;
+	event ae, be, ce, de;
 	if (a[0])
 	{
 	    ae.set_channel(a[1]);
@@ -422,21 +418,7 @@ optionsfile::parse (perform & p)
 	    de.set_channel(d[1]);
 	    de.set_status(d[2]);
 	    de.set_data(d[3], d[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_unqueue, de);
-	}
-	if (e[0])
-	{
-	    ee.set_channel(e[1]);
-	    ee.set_status(e[2]);
-	    ee.set_data(e[3], e[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_activate, ee);
-	}
-	if (f[0])
-	{
-	    fe.set_channel(f[1]);
-	    fe.set_status(f[2]);
-	    fe.set_data(f[3], f[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_delete, fe);
+	    mctrl->set_seq_event(i, midi_control_out::action_delete, de);
 	}
     }
     p.set_midi_ctrl_out(mctrl);
@@ -1243,8 +1225,8 @@ optionsfile::write (const perform & p)
 	"#    | | | | ----------- data 2\n"
 	"#    | | | | |\n"
 	"#    v v v v v\n"
-	"#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
-	"#       Play         Mute       Queue      Unqueue      Load       Delete\n"
+	"#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
+	"#       Play         Mute       Queue     Delete\n"
 	"\n"
 	"32 # Number of sequences\n\n";
 
