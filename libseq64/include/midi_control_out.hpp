@@ -69,15 +69,18 @@ public:
      *
      * \var action_delete
      *      Sequence is deleted from its slot.
+     * 
+     * \var action_max
+     *      Marker for the maximum value of actions.
      */
 
     typedef enum
     {
-	action_play     = 0,
-	action_mute     = 1,
-	action_queue    = 2,
-	action_delete   = 3,
-	action_max      = 4
+	action_arm     = 0,
+	action_mute    = 1,
+	action_queue   = 2,
+	action_delete  = 3,
+	action_max     = 4
     } action;
     
 private:

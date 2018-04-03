@@ -63,9 +63,21 @@ midi_control_out::midi_control_out ()
 }
 
     
+std::string action_to_str(midi_control_out::action a)
+{
+    switch (a)
+    {
+    case midi_control_out::action_arm: return "ARM";
+    case midi_control_out::action_mute: return "MUTE";
+    case midi_control_out::action_queue: return "QUEUE";
+    case midi_control_out::action_delete: return "DELETE";
+    default: return "UNKNOWN";
+    }
+}
+    
 void midi_control_out::send_seq_event(int seq, action what)
 {
-  printf("[ctrl-out] %i (%i)\n", seq, (int)what);
+    printf("[ctrl-out] seq #%i %s\n", seq, action_to_str(what).c_str());
   
     if (seq < 0 || seq >= 32)
     {

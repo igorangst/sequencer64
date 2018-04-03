@@ -397,7 +397,7 @@ optionsfile::parse (perform & p)
 	    ae.set_channel(a[1]);
 	    ae.set_status(a[2]);
 	    ae.set_data(a[3], a[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_play, ae);
+	    mctrl->set_seq_event(i, midi_control_out::action_arm, ae);
 	}
 	if (b[0])
 	{
@@ -1222,11 +1222,11 @@ optionsfile::write (const perform & p)
 	"#    | ----------------- MIDI channel (0-15)\n"
 	"#    | | --------------- MIDI status (event) byte (e.g. note on)\n"
 	"#    | | | ------------- data 1 (e.g. note number)\n"
-	"#    | | | | ----------- data 2\n"
+	"#    | | | | ----------- data 2 (e.g. velocity)\n"
 	"#    | | | | |\n"
 	"#    v v v v v\n"
 	"#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
-	"#       Play         Mute       Queue     Delete\n"
+	"#       Arm         Mute       Queue      Delete\n"
 	"\n"
 	"32 # Number of sequences\n\n";
 

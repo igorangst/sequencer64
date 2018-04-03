@@ -1033,7 +1033,7 @@ sequence::toggle_queued ()
     {
 	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_queue);
     } else if (get_playing()) {
-	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_play);
+	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_arm);
     } else {
 	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::action_mute);
     }
@@ -4797,7 +4797,7 @@ sequence::set_playing (bool p)
 #endif
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (send_play)
-	m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::action_play : midi_control_out::action_mute);
+	m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::action_arm : midi_control_out::action_mute);
 #endif
 }
 
