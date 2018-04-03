@@ -76,13 +76,31 @@ public:
 
     typedef enum
     {
-	action_arm     = 0,
-	action_mute    = 1,
-	action_queue   = 2,
-	action_delete  = 3,
-	action_max     = 4
+	seq_action_arm     = 0,
+	seq_action_mute    = 1,
+	seq_action_queue   = 2,
+	seq_action_delete  = 3,
+	seq_action_max     = 4
+    } seq_action;
+
+    typedef enum
+    {
+	action_play          = 0,
+	action_stop          = 1,
+	action_pause         = 2,
+	action_queue_on      = 3,
+	action_queue_off     = 4,
+	action_oneshot_on    = 5,
+	action_oneshot_off   = 6,
+	action_replace_on    = 7,
+	action_replace_off   = 8,
+	action_snap1_store   = 9,
+	action_snap1_restore = 10,
+	action_snap2_store   = 11,
+	action_snap2_restore = 12,
+	action_max           = 13
     } action;
-    
+
 private:
 
     /**
@@ -98,8 +116,25 @@ private:
     /**
      *  Provides the events to be sent out for sequence status changes.
      */
-    event m_seq_event[32][action_max];
-    bool  m_seq_active[32][action_max];
+    event m_seq_event[32][seq_action_max];
+
+    /**
+     *  True if the respective sequence action is active (i.e. has
+     *  been set in the configuration file).
+     */
+    bool  m_seq_active[32][seq_action_max];
+
+    /** 
+     *  Provides the events to be sent out for non-sequence actions.
+     */
+    event m_event[action_max];
+
+    /**
+     *  True if the respective action is active (i.e. has been set in
+     *  the configuration file).
+     */
+    bool  m_event_active[action_max];
+    
 
 public:
 
@@ -119,7 +154,7 @@ public:
      * \param what
      *      The status action of the sequence 
      */
-    void send_seq_event(int seq, action what);
+    void send_seq_event(int seq, seq_action what);
 
     /** 
      * Getter for sequence action events.
@@ -133,7 +168,7 @@ public:
      * \returns
      *      The MIDI event to be sent.
      */
-    event get_seq_event(int seq, action what) const;
+    event get_seq_event(int seq, seq_action what) const;
 
     /** 
      * Register a MIDI event for a given sequence action.
@@ -147,7 +182,7 @@ public:
      * \param event
      *      The MIDI event to be sent.
      */
-    void set_seq_event(int seq, action what, event& ev);
+    void set_seq_event(int seq, seq_action what, event& ev);
 
     /** 
      * Checks if a sequence status event is active.
@@ -161,7 +196,48 @@ public:
      * \return 
      *      Returns true if the respective event is active.
      */
-    bool seq_event_is_active(int seq, action what) const;
+    bool seq_event_is_active(int seq, seq_action what) const;
+
+    /** 
+     * Send out notification about non-sequence actions.
+     *
+     * \param what
+     *      The action to be notified
+     */
+    void send_event(action what);
+
+    /** 
+     * Getter for non-sequence action events.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \returns
+     *      The MIDI event to be sent.
+     */
+    event get_event(action what) const;
+
+    /** 
+     * Register a MIDI event for a given non-sequence action.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \param event
+     *      The MIDI event to be sent.
+     */
+    void set_event(action what, event& ev);
+
+    /** 
+     * Checks if an event is active.
+     * 
+     * \param what
+     *      The action to be notified.
+     *
+     * \return 
+     *      Returns true if the respective event is active.
+     */
+    bool event_is_active(action what) const;
 };
 
 }

@@ -54,30 +54,35 @@ midi_control_out::midi_control_out ()
     event dummy_e;
     for (int i=0; i<32; ++i)
     {	
-	for (int a=0; a<action_max; ++a)
+	for (int a=0; a<seq_action_max; ++a)
 	{
 	    m_seq_event[i][a] = dummy_e;
 	    m_seq_active[i][a] = false;
 	}
     }
+    for (int i=0; i<action_max; ++i)
+    {
+	m_event[i] = dummy_e;
+	m_event_active[i] = false;
+    }
 }
 
     
-std::string action_to_str(midi_control_out::action a)
+std::string seq_action_to_str(midi_control_out::seq_action a)
 {
     switch (a)
     {
-    case midi_control_out::action_arm: return "ARM";
-    case midi_control_out::action_mute: return "MUTE";
-    case midi_control_out::action_queue: return "QUEUE";
-    case midi_control_out::action_delete: return "DELETE";
+    case midi_control_out::seq_action_arm: return "ARM";
+    case midi_control_out::seq_action_mute: return "MUTE";
+    case midi_control_out::seq_action_queue: return "QUEUE";
+    case midi_control_out::seq_action_delete: return "DELETE";
     default: return "UNKNOWN";
     }
 }
     
-void midi_control_out::send_seq_event(int seq, action what)
+void midi_control_out::send_seq_event(int seq, seq_action what)
 {
-    printf("[ctrl-out] seq #%i %s\n", seq, action_to_str(what).c_str());
+    printf("[ctrl-out] seq #%i %s\n", seq, seq_action_to_str(what).c_str());
   
     if (seq < 0 || seq >= 32)
     {
@@ -96,7 +101,7 @@ void midi_control_out::send_seq_event(int seq, action what)
     }
 }
 
-event midi_control_out::get_seq_event(int seq, action what) const
+event midi_control_out::get_seq_event(int seq, seq_action what) const
 {
     if (seq < 0 || seq >= 32)
     {
@@ -107,7 +112,7 @@ event midi_control_out::get_seq_event(int seq, action what) const
     }
 }   
     
-void midi_control_out::set_seq_event(int seq, action what, event& ev)
+void midi_control_out::set_seq_event(int seq, seq_action what, event& ev)
 {
   printf("[set_seq_event] %i %i\n", seq, (int)what);
     m_seq_event[seq][what] = ev;
@@ -115,7 +120,7 @@ void midi_control_out::set_seq_event(int seq, action what, event& ev)
 }
     
 
-bool midi_control_out::seq_event_is_active(int seq, action what) const
+bool midi_control_out::seq_event_is_active(int seq, seq_action what) const
 {
     if (seq < 0 || seq >= 32)
     {
@@ -125,6 +130,46 @@ bool midi_control_out::seq_event_is_active(int seq, action what) const
     }
 }
 
-    
+void midi_control_out::send_event(action what)
+{
+    if (event_is_active(what))
+    {
+	event ev = m_event[what];
+	if (not_nullptr(m_master_bus))
+	{
+	    m_master_bus->play(m_buss, &ev, ev.get_channel());
+	    m_master_bus->flush();
+	}
+    }
+}
+
+event midi_control_out::get_event(action what) const
+{
+    if (event_is_active(what))
+    {
+	return m_event[what];
+    } else {
+	event dummy_event;
+	return dummy_event;
+    }
+}
+
+void midi_control_out::set_event(action what, event& ev)
+{
+    if (what < action_max)
+    {
+	m_event[what] = ev;
+    }
+}
+
+bool midi_control_out::event_is_active(action what) const
+{
+    if (what < action_max)
+    {
+	return m_event_active[what];
+    } else {
+	return false;
+    }
+}
     
 }

@@ -397,28 +397,28 @@ optionsfile::parse (perform & p)
 	    ae.set_channel(a[1]);
 	    ae.set_status(a[2]);
 	    ae.set_data(a[3], a[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_arm, ae);
+	    mctrl->set_seq_event(i, midi_control_out::seq_action_arm, ae);
 	}
 	if (b[0])
 	{
 	    be.set_channel(b[1]);
 	    be.set_status(b[2]);
 	    be.set_data(b[3], b[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_mute, be);
+	    mctrl->set_seq_event(i, midi_control_out::seq_action_mute, be);
 	}
 	if (c[0])
 	{
 	    ce.set_channel(c[1]);
 	    ce.set_status(c[2]);
 	    ce.set_data(c[3], c[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_queue, ce);
+	    mctrl->set_seq_event(i, midi_control_out::seq_action_queue, ce);
 	}
 	if (d[0])
 	{
 	    de.set_channel(d[1]);
 	    de.set_status(d[2]);
 	    de.set_data(d[3], d[4]);
-	    mctrl->set_seq_event(i, midi_control_out::action_delete, de);
+	    mctrl->set_seq_event(i, midi_control_out::seq_action_delete, de);
 	}
     }
     p.set_midi_ctrl_out(mctrl);
@@ -1233,11 +1233,11 @@ optionsfile::write (const perform & p)
     for (int seq=0; seq<32; ++seq)
     {
 	file << seq;
-	for (int a=0; a<midi_control_out::action_max; ++a)
+	for (int a=0; a<midi_control_out::seq_action_max; ++a)
 	{
-	    if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::action)a))
+	    if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::seq_action)a))
 	    {
-		event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::action)a);
+		event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
 		midibyte d0, d1;		
 		ev.get_data(d0, d1);
 		file << " [1 "

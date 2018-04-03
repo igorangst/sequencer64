@@ -1805,8 +1805,8 @@ perform::delete_sequence (int seq)
             m_seqs[seq] = nullptr;
             modify();                               /* it is dirty, man     */
 #ifdef SEQ64_MIDI_CTRL_OUT
-	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::action_mute);
-	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::action_delete);
+	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_mute);
+	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_delete);
 #endif
         }
     }
