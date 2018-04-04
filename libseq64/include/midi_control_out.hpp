@@ -179,11 +179,25 @@ public:
      * \param what
      *      The action to be notified.
      *
-     * \param event
+     * \param ev
      *      The MIDI event to be sent.
      */
     void set_seq_event(int seq, seq_action what, event& ev);
 
+    /** 
+     * Register a MIDI event for a given sequence action.
+     *
+     * \param seq
+     *      The index of the sequence.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \param ev
+     *      Raw int array representing The MIDI event to be sent.
+     */
+    void set_seq_event(int seq, seq_action what, int *ev);
+    
     /** 
      * Checks if a sequence status event is active.
      * 
@@ -218,6 +232,17 @@ public:
     event get_event(action what) const;
 
     /** 
+     * Getter for non-sequence action events.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \returns
+     *      The MIDI event in a config-compatible string
+     */
+    std::string get_event_str(action what) const;
+
+    /** 
      * Register a MIDI event for a given non-sequence action.
      *
      * \param what
@@ -227,6 +252,17 @@ public:
      *      The MIDI event to be sent.
      */
     void set_event(action what, event& ev);
+
+    /** 
+     * Register a MIDI event for a given non-sequence action.
+     *
+     * \param what
+     *      The action to be notified.
+     *
+     * \param ev
+     *      Raw int data representing the MIDI event to be sent.
+     */
+    void set_event(action what, int *ev);
 
     /** 
      * Checks if an event is active.

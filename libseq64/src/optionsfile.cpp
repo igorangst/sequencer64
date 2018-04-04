@@ -369,6 +369,8 @@ optionsfile::parse (perform & p)
      */
 
     line_after(file, "[midi-control-out]");    
+
+    // Sequence actions
     sscanf(m_line, "%u", &sequences);
     midi_control_out *mctrl = new midi_control_out();
     for (unsigned i=0; i<sequences; ++i)
@@ -391,36 +393,78 @@ optionsfile::parse (perform & p)
             &c[0], &c[1], &c[2], &c[3], &c[4],
             &d[0], &d[1], &d[2], &d[3], &d[4]
             );
-        event ae, be, ce, de;
-        if (a[0])
-        {
-            ae.set_channel(a[1]);
-            ae.set_status(a[2]);
-            ae.set_data(a[3], a[4]);
-            mctrl->set_seq_event(i, midi_control_out::seq_action_arm, ae);
-        }
-        if (b[0])
-        {
-            be.set_channel(b[1]);
-            be.set_status(b[2]);
-            be.set_data(b[3], b[4]);
-            mctrl->set_seq_event(i, midi_control_out::seq_action_mute, be);
-        }
-        if (c[0])
-        {
-            ce.set_channel(c[1]);
-            ce.set_status(c[2]);
-            ce.set_data(c[3], c[4]);
-            mctrl->set_seq_event(i, midi_control_out::seq_action_queue, ce);
-        }
-        if (d[0])
-        {
-            de.set_channel(d[1]);
-            de.set_status(d[2]);
-            de.set_data(d[3], d[4]);
-            mctrl->set_seq_event(i, midi_control_out::seq_action_delete, de);
-        }
+        mctrl->set_seq_event(i, midi_control_out::seq_action_arm, a);
+        mctrl->set_seq_event(i, midi_control_out::seq_action_mute, b);
+        mctrl->set_seq_event(i, midi_control_out::seq_action_queue, c);
+        mctrl->set_seq_event(i, midi_control_out::seq_action_delete, d);
     }
+
+    // Non-sequence actions
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    int ev[5];
+    sscanf(m_line, "%d [ %d %d %d %d ]",
+           &ev[0], &ev[1], &ev[2], &ev[3], &ev[4]);
+    mctrl->set_event(midi_control_out::action_play, ev);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ]",
+           &ev[0], &ev[1], &ev[2], &ev[3], &ev[4]);
+    mctrl->set_event(midi_control_out::action_stop, ev);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ]",
+           &ev[0], &ev[1], &ev[2], &ev[3], &ev[4]);
+    mctrl->set_event(midi_control_out::action_pause, ev);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    int ev_on[5], ev_off[5];
+    sscanf(m_line, "%d [ %d %d %d %d ] [ %d %d %d %d ]",
+           &ev_on[0], &ev_on[1], &ev_on[2], &ev_on[3], &ev_on[4],
+           &ev_off[1], &ev_off[2], &ev_off[3], &ev_off[4]);
+    ev_off[0] = ev_on[0];
+    mctrl->set_event(midi_control_out::action_queue_on, ev_on);
+    mctrl->set_event(midi_control_out::action_queue_off, ev_off);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ] [ %d %d %d %d ]",
+           &ev_on[0], &ev_on[1], &ev_on[2], &ev_on[3], &ev_on[4],
+           &ev_off[1], &ev_off[2], &ev_off[3], &ev_off[4]);
+    ev_off[0] = ev_on[0];
+    mctrl->set_event(midi_control_out::action_oneshot_on, ev_on);
+    mctrl->set_event(midi_control_out::action_oneshot_off, ev_off);
+    
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ] [ %d %d %d %d ]",
+           &ev_on[0], &ev_on[1], &ev_on[2], &ev_on[3], &ev_on[4],
+           &ev_off[1], &ev_off[2], &ev_off[3], &ev_off[4]);
+    ev_off[0] = ev_on[0];
+    mctrl->set_event(midi_control_out::action_replace_on, ev_on);
+    mctrl->set_event(midi_control_out::action_replace_off, ev_off);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ] [ %d %d %d %d ]",
+           &ev_on[0], &ev_on[1], &ev_on[2], &ev_on[3], &ev_on[4],
+           &ev_off[1], &ev_off[2], &ev_off[3], &ev_off[4]);
+    ev_off[0] = ev_on[0];
+    mctrl->set_event(midi_control_out::action_snap1_store, ev_on);
+    mctrl->set_event(midi_control_out::action_snap1_restore, ev_off);
+
+    if (!next_data_line(file))
+        return error_message("midi-control-out", "missing data");
+    sscanf(m_line, "%d [ %d %d %d %d ] [ %d %d %d %d ]",
+           &ev_on[0], &ev_on[1], &ev_on[2], &ev_on[3], &ev_on[4],
+           &ev_off[1], &ev_off[2], &ev_off[3], &ev_off[4]);
+    ev_off[0] = ev_on[0];
+    mctrl->set_event(midi_control_out::action_snap2_store, ev_on);
+    mctrl->set_event(midi_control_out::action_snap2_restore, ev_off);
+
     p.set_midi_ctrl_out(mctrl);
 
 #endif
@@ -1251,7 +1295,44 @@ optionsfile::write (const perform & p)
         }
         file << "\n";
     }
-    
+
+    file << "\n# MIDI control output: play\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_play) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_play) << "\n";
+
+    file << "\n# MIDI control output: stop\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_stop) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_stop) << "\n";
+
+    file << "\n# MIDI control output: pause\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_pause) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_pause) << "\n";
+
+    file << "\n# MIDI control output: queue modifier on/off\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_queue_on) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_queue_on) << " ";
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_queue_off) << "\n";
+
+    file << "\n# MIDI control output: oneshot modifier on/off\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_oneshot_on) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_oneshot_on) << " ";
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_oneshot_off) << "\n";
+
+    file << "\n# MIDI control output: replace modifier on/off\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_replace_on) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_replace_on) << " ";
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_replace_off) << "\n";
+
+    file << "\n# MIDI control output: snapshot 1 store/restore\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_snap1_store) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_snap1_store) << " ";
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_snap1_restore) << "\n";
+
+    file << "\n# MIDI control output: snapshot 2 store/restore\n";
+    file << (p.m_midi_ctrl_out->event_is_active(midi_control_out::action_snap2_store) ? "1 " : "0 ");
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_snap2_store) << " ";
+    file << p.m_midi_ctrl_out->get_event_str(midi_control_out::action_snap2_restore) << "\n";
+
 #endif
     
     /*

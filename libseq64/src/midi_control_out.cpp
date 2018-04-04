@@ -36,6 +36,7 @@
  */
 
 #include "midi_control_out.hpp"
+#include <sstream>
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -114,11 +115,31 @@ event midi_control_out::get_seq_event(int seq, seq_action what) const
     
 void midi_control_out::set_seq_event(int seq, seq_action what, event& ev)
 {
-  printf("[set_seq_event] %i %i\n", seq, (int)what);
+    printf("[set_seq_event] %i %i\n", seq, (int)what);
     m_seq_event[seq][what] = ev;
     m_seq_active[seq][what] = true;
 }
-    
+
+void midi_control_out::set_seq_event(int seq, seq_action what, int *eva)
+{
+    if (what >= seq_action_max)
+    {
+        return;
+    }
+    if (eva[0])
+    {
+        printf("[set_seq_event] %i %i\n", seq, (int)what);
+        event ev;
+        ev.set_channel(eva[1]);
+        ev.set_status(eva[2]);
+        ev.set_data(eva[3], eva[4]);
+        m_seq_event[seq][what] = ev;
+        m_seq_active[seq][what] = true;
+    } else {
+        m_seq_active[seq][what] = false;
+    }
+}
+
 
 bool midi_control_out::seq_event_is_active(int seq, seq_action what) const
 {
@@ -154,11 +175,49 @@ event midi_control_out::get_event(action what) const
     }
 }
 
-void midi_control_out::set_event(action what, event& ev)
+std::string midi_control_out::get_event_str(action what) const
 {
+    if (!event_is_active(what))
+    {
+        return "[0 0 0 0]";
+    } else {
+        const event& ev(m_event[what]);
+        midibyte d0, d1;
+        ev.get_data(d0, d1);
+        std::ostringstream str;
+        str << "[" << (int)ev.get_channel() << " "
+            << (int)ev.get_status() << " "
+            << (int)d0 << " "
+            << (int)d1 << "]";
+        return str.str();
+    }
+}
+
+void midi_control_out::set_event(action what, event& ev)
+{    
     if (what < action_max)
     {
         m_event[what] = ev;
+    }
+}
+
+void midi_control_out::set_event(action what, int *eva)
+{
+    if (what >= action_max)
+    {
+        return;
+    }
+    if (eva[0])
+    {
+        printf("[set_event] %i\n", (int)what);
+        event ev;
+        ev.set_channel(eva[1]);
+        ev.set_status(eva[2]);
+        ev.set_data(eva[3], eva[4]);
+        m_event[what] = ev;
+        m_event_active[what] = true;
+    } else {
+        m_event_active[what] = false;
     }
 }
 
