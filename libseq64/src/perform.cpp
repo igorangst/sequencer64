@@ -438,17 +438,17 @@ perform::create_master_bus ()
             m_master_bus->filter_by_channel(m_filter_by_channel);
             m_master_bus->port_settings(m_master_clocks, m_master_inputs);
 #ifdef SEQ64_MIDI_CTRL_OUT
-	    if (not_nullptr(m_midi_ctrl_out))
-	    {
-		m_midi_ctrl_out->set_master_bus(m_master_bus);
-	    } else {
+            if (not_nullptr(m_midi_ctrl_out))
+            {
+                m_midi_ctrl_out->set_master_bus(m_master_bus);
+            } else {
 
-		// FIXME: We get here if the optionsfile was missing,
-		// is there any other case? Let's create a dummy
-		// object for the MIDI control outputs...
-		m_midi_ctrl_out = new midi_control_out();
-		m_midi_ctrl_out->set_master_bus(m_master_bus);
-	    }
+                // FIXME: We get here if the optionsfile was missing,
+                // is there any other case? Let's create a dummy
+                // object for the MIDI control outputs...
+                m_midi_ctrl_out = new midi_control_out();
+                m_midi_ctrl_out->set_master_bus(m_master_bus);
+            }
 #endif
         }
     }
@@ -1389,7 +1389,7 @@ perform::toggle_all_tracks ()
         {
             m_seqs[i]->toggle_song_mute();
             m_seqs[i]->toggle_playing();        /* needed to show mute status */
-	}
+        }
     }
 }
 
@@ -1663,8 +1663,8 @@ perform::install_sequence (sequence * seq, int seqnum)
 
         result = true;                  /* a modification occurred  */
 // #ifdef SEQ64_MIDI_CTRL_OUT
-// 	m_midi_ctrl_out->send_seq_event(seqnum, midi_control_out::action_activate);
-// #endif	    		  
+//      m_midi_ctrl_out->send_seq_event(seqnum, midi_control_out::action_activate);
+// #endif                         
 
     }
     return result;
@@ -1805,8 +1805,8 @@ perform::delete_sequence (int seq)
             m_seqs[seq] = nullptr;
             modify();                               /* it is dirty, man     */
 #ifdef SEQ64_MIDI_CTRL_OUT
-	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_mute);
-	    m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_delete);
+            m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_mute);
+            m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_delete);
 #endif
         }
     }
@@ -2126,14 +2126,14 @@ perform::page_increment_beats_per_minute ()
 bool
 perform::log_current_tempo ()
 {
-	sequence * seq = get_sequence(get_tempo_track_number());
-	bool result = not_nullptr(seq);
-	if (result)
-	{
-		midipulse tick = get_tick();
-		midibpm bpm = get_beats_per_minute();
-		seq64::event e = create_tempo_event(tick, bpm);   /* event.cpp */
-		if (seq->add_event(e))
+        sequence * seq = get_sequence(get_tempo_track_number());
+        bool result = not_nullptr(seq);
+        if (result)
+        {
+                midipulse tick = get_tick();
+                midibpm bpm = get_beats_per_minute();
+                seq64::event e = create_tempo_event(tick, bpm);   /* event.cpp */
+                if (seq->add_event(e))
         {
             seq->link_tempos();
             seq->set_dirty();
@@ -2141,8 +2141,8 @@ perform::log_current_tempo ()
             if (tick > seq->get_length())
                 seq->set_length(tick);
         }
-	}
-	return result;
+        }
+        return result;
 }
 
 /**
@@ -2373,7 +2373,7 @@ perform::set_midi_ctrl_out(midi_control_out *ctrl_out)
 {
     m_midi_ctrl_out = ctrl_out;
     if (not_nullptr(m_master_bus))
-	m_midi_ctrl_out->set_master_bus(m_master_bus);
+        m_midi_ctrl_out->set_master_bus(m_master_bus);
 }
 #endif
 
@@ -3164,10 +3164,10 @@ perform::off_sequences ()
     for (int s = 0; s < m_sequence_high; ++s)       /* modest speed-up */
     {
         if (is_active(s))
-	{
+        {
             m_seqs[s]->set_playing(false);
-	    
-	}
+            
+        }
     }
 }
 
@@ -3362,7 +3362,7 @@ perform::add_trigger (int seqnum, midipulse tick)
 }
 
 /**
- *	Delete the existing specified trigger.
+ *      Delete the existing specified trigger.
  *
  * \param seqnum
  *      Indicates the sequence that needs to have its trigger handled.
@@ -3384,8 +3384,8 @@ perform::delete_trigger (int seqnum, midipulse tick)
 }
 
 /**
- *	Add a new trigger if nothing is selected, otherwise delete the existing
- *	trigger.
+ *      Add a new trigger if nothing is selected, otherwise delete the existing
+ *      trigger.
  *
  * \param seqnum
  *      Indicates the sequence that needs to have its trigger handled.
@@ -5380,9 +5380,9 @@ perform::restore_playing_state ()
     for (int s = 0; s < m_sequence_high; ++s)       /* modest speed-up */
     {
         if (is_active(s))
-	  {
+          {
             m_seqs[s]->set_playing(m_sequence_state[s]);
-	  }
+          }
     }
 }
 
@@ -5684,21 +5684,21 @@ perform::sequence_playing_change (int seq, bool on)
         {
             if (q_in_progress)
             {
-	      if (! queued)
-		{
-		  s->toggle_queued();
-		}
+              if (! queued)
+                {
+                  s->toggle_queued();
+                }
             }
             else
-	    {
+            {
                 s->set_playing(on);
-	    }
+            }
         }
         else
         {
-	  if (queued && q_in_progress) {
-	    s->toggle_queued();
-	  }
+          if (queued && q_in_progress) {
+            s->toggle_queued();
+          }
         }
     }
 }

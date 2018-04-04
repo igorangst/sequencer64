@@ -53,17 +53,17 @@ midi_control_out::midi_control_out ()
 {
     event dummy_e;
     for (int i=0; i<32; ++i)
-    {	
-	for (int a=0; a<seq_action_max; ++a)
-	{
-	    m_seq_event[i][a] = dummy_e;
-	    m_seq_active[i][a] = false;
-	}
+    {   
+        for (int a=0; a<seq_action_max; ++a)
+        {
+            m_seq_event[i][a] = dummy_e;
+            m_seq_active[i][a] = false;
+        }
     }
     for (int i=0; i<action_max; ++i)
     {
-	m_event[i] = dummy_e;
-	m_event_active[i] = false;
+        m_event[i] = dummy_e;
+        m_event_active[i] = false;
     }
 }
 
@@ -86,18 +86,18 @@ void midi_control_out::send_seq_event(int seq, seq_action what)
   
     if (seq < 0 || seq >= 32)
     {
-	return;
+        return;
     } else {
-	if (!m_seq_active[seq][what])
-	{
-	    return;
-	}
-	event ev = m_seq_event[seq][what];
-	if (not_nullptr(m_master_bus))
-	{
-	    m_master_bus->play(m_buss, &ev, ev.get_channel());
-	    m_master_bus->flush();
-	}
+        if (!m_seq_active[seq][what])
+        {
+            return;
+        }
+        event ev = m_seq_event[seq][what];
+        if (not_nullptr(m_master_bus))
+        {
+            m_master_bus->play(m_buss, &ev, ev.get_channel());
+            m_master_bus->flush();
+        }
     }
 }
 
@@ -105,10 +105,10 @@ event midi_control_out::get_seq_event(int seq, seq_action what) const
 {
     if (seq < 0 || seq >= 32)
     {
-	event dummy_event;
-	return dummy_event;
+        event dummy_event;
+        return dummy_event;
     } else {
-	return m_seq_event[seq][what];
+        return m_seq_event[seq][what];
     }
 }   
     
@@ -124,9 +124,9 @@ bool midi_control_out::seq_event_is_active(int seq, seq_action what) const
 {
     if (seq < 0 || seq >= 32)
     {
-	return false;
+        return false;
     } else {
-	return m_seq_active[seq][what];
+        return m_seq_active[seq][what];
     }
 }
 
@@ -134,12 +134,12 @@ void midi_control_out::send_event(action what)
 {
     if (event_is_active(what))
     {
-	event ev = m_event[what];
-	if (not_nullptr(m_master_bus))
-	{
-	    m_master_bus->play(m_buss, &ev, ev.get_channel());
-	    m_master_bus->flush();
-	}
+        event ev = m_event[what];
+        if (not_nullptr(m_master_bus))
+        {
+            m_master_bus->play(m_buss, &ev, ev.get_channel());
+            m_master_bus->flush();
+        }
     }
 }
 
@@ -147,10 +147,10 @@ event midi_control_out::get_event(action what) const
 {
     if (event_is_active(what))
     {
-	return m_event[what];
+        return m_event[what];
     } else {
-	event dummy_event;
-	return dummy_event;
+        event dummy_event;
+        return dummy_event;
     }
 }
 
@@ -158,7 +158,7 @@ void midi_control_out::set_event(action what, event& ev)
 {
     if (what < action_max)
     {
-	m_event[what] = ev;
+        m_event[what] = ev;
     }
 }
 
@@ -166,9 +166,9 @@ bool midi_control_out::event_is_active(action what) const
 {
     if (what < action_max)
     {
-	return m_event_active[what];
+        return m_event_active[what];
     } else {
-	return false;
+        return false;
     }
 }
     

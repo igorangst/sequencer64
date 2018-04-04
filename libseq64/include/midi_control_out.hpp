@@ -76,29 +76,29 @@ public:
 
     typedef enum
     {
-	seq_action_arm     = 0,
-	seq_action_mute    = 1,
-	seq_action_queue   = 2,
-	seq_action_delete  = 3,
-	seq_action_max     = 4
+        seq_action_arm     = 0,
+        seq_action_mute    = 1,
+        seq_action_queue   = 2,
+        seq_action_delete  = 3,
+        seq_action_max     = 4
     } seq_action;
 
     typedef enum
     {
-	action_play          = 0,
-	action_stop          = 1,
-	action_pause         = 2,
-	action_queue_on      = 3,
-	action_queue_off     = 4,
-	action_oneshot_on    = 5,
-	action_oneshot_off   = 6,
-	action_replace_on    = 7,
-	action_replace_off   = 8,
-	action_snap1_store   = 9,
-	action_snap1_restore = 10,
-	action_snap2_store   = 11,
-	action_snap2_restore = 12,
-	action_max           = 13
+        action_play          = 0,
+        action_stop          = 1,
+        action_pause         = 2,
+        action_queue_on      = 3,
+        action_queue_off     = 4,
+        action_oneshot_on    = 5,
+        action_oneshot_off   = 6,
+        action_replace_on    = 7,
+        action_replace_off   = 8,
+        action_snap1_store   = 9,
+        action_snap1_restore = 10,
+        action_snap2_store   = 11,
+        action_snap2_restore = 12,
+        action_max           = 13
     } action;
 
 private:
@@ -142,7 +142,7 @@ public:
 
     void set_master_bus(mastermidibus* mmbus)
     {
-	m_master_bus = mmbus;
+        m_master_bus = mmbus;
     }
   
     /** 

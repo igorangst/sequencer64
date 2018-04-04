@@ -620,7 +620,7 @@ sequence::select_note_events
                 bool tand = (ts <= tick_f && tf >= tick_s);
                 bool tor =  (ts <= tick_f || tf >= tick_s);
                 bool ok = ((ts <= tf) && tand) || ((ts > tf) && tor);
-			    if (ok)
+                            if (ok)
                 {
                     /*
                      * Could use a switch statement here.
@@ -1031,11 +1031,11 @@ sequence::toggle_queued ()
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (m_queued)
     {
-	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue);
+        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue);
     } else if (get_playing()) {
-	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm);
+        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm);
     } else {
-	m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute);
+        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute);
     }
     
 #endif
@@ -1213,7 +1213,7 @@ sequence::play
     }
     if (trigger_turning_off)                        /* triggers: "turn off" */
     {
-	    set_playing(false);
+            set_playing(false);
     }
 
     m_last_tick = end_tick + 1;                     /* for next frame       */
@@ -4784,7 +4784,7 @@ sequence::set_playing (bool p)
         m_playing = p;
         if (! p)
             off_playing_notes();
-	
+        
         set_dirty();
     }
     m_queued = false;
@@ -4793,7 +4793,7 @@ sequence::set_playing (bool p)
 #endif
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (send_play)
-	m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::seq_action_arm : midi_control_out::seq_action_mute);
+        m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::seq_action_arm : midi_control_out::seq_action_mute);
 #endif
 }
 

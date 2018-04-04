@@ -373,53 +373,53 @@ optionsfile::parse (perform & p)
     midi_control_out *mctrl = new midi_control_out();
     for (unsigned i=0; i<sequences; ++i)
     {
-	if (!next_data_line(file))
-	{
-	    return error_message("midi-control-out", "no data");
-	}	
-	int a[5], b[5], c[5], d[5];
-	int sequence = 0;
-	sscanf(
-	    m_line,
-	    "%d [ %d %d %d %d %d ]"
-	    " [ %d %d %d %d %d ]"
-	    " [ %d %d %d %d %d ]"
-	    " [ %d %d %d %d %d ]",
-	    &sequence,
-	    &a[0], &a[1], &a[2], &a[3], &a[4],
-	    &b[0], &b[1], &b[2], &b[3], &b[4],
-	    &c[0], &c[1], &c[2], &c[3], &c[4],
-	    &d[0], &d[1], &d[2], &d[3], &d[4]
-	    );
-	event ae, be, ce, de;
-	if (a[0])
-	{
-	    ae.set_channel(a[1]);
-	    ae.set_status(a[2]);
-	    ae.set_data(a[3], a[4]);
-	    mctrl->set_seq_event(i, midi_control_out::seq_action_arm, ae);
-	}
-	if (b[0])
-	{
-	    be.set_channel(b[1]);
-	    be.set_status(b[2]);
-	    be.set_data(b[3], b[4]);
-	    mctrl->set_seq_event(i, midi_control_out::seq_action_mute, be);
-	}
-	if (c[0])
-	{
-	    ce.set_channel(c[1]);
-	    ce.set_status(c[2]);
-	    ce.set_data(c[3], c[4]);
-	    mctrl->set_seq_event(i, midi_control_out::seq_action_queue, ce);
-	}
-	if (d[0])
-	{
-	    de.set_channel(d[1]);
-	    de.set_status(d[2]);
-	    de.set_data(d[3], d[4]);
-	    mctrl->set_seq_event(i, midi_control_out::seq_action_delete, de);
-	}
+        if (!next_data_line(file))
+        {
+            return error_message("midi-control-out", "no data");
+        }       
+        int a[5], b[5], c[5], d[5];
+        int sequence = 0;
+        sscanf(
+            m_line,
+            "%d [ %d %d %d %d %d ]"
+            " [ %d %d %d %d %d ]"
+            " [ %d %d %d %d %d ]"
+            " [ %d %d %d %d %d ]",
+            &sequence,
+            &a[0], &a[1], &a[2], &a[3], &a[4],
+            &b[0], &b[1], &b[2], &b[3], &b[4],
+            &c[0], &c[1], &c[2], &c[3], &c[4],
+            &d[0], &d[1], &d[2], &d[3], &d[4]
+            );
+        event ae, be, ce, de;
+        if (a[0])
+        {
+            ae.set_channel(a[1]);
+            ae.set_status(a[2]);
+            ae.set_data(a[3], a[4]);
+            mctrl->set_seq_event(i, midi_control_out::seq_action_arm, ae);
+        }
+        if (b[0])
+        {
+            be.set_channel(b[1]);
+            be.set_status(b[2]);
+            be.set_data(b[3], b[4]);
+            mctrl->set_seq_event(i, midi_control_out::seq_action_mute, be);
+        }
+        if (c[0])
+        {
+            ce.set_channel(c[1]);
+            ce.set_status(c[2]);
+            ce.set_data(c[3], c[4]);
+            mctrl->set_seq_event(i, midi_control_out::seq_action_queue, ce);
+        }
+        if (d[0])
+        {
+            de.set_channel(d[1]);
+            de.set_status(d[2]);
+            de.set_data(d[3], d[4]);
+            mctrl->set_seq_event(i, midi_control_out::seq_action_delete, de);
+        }
     }
     p.set_midi_ctrl_out(mctrl);
 
@@ -1216,40 +1216,40 @@ optionsfile::write (const perform & p)
 #ifdef SEQ64_MIDI_CTRL_OUT
 
     file <<
-	"\n[midi-control-out]\n"
-	"\n"
-	"#    ------------------- on/off (indicate is the section is enabled)\n"
-	"#    | ----------------- MIDI channel (0-15)\n"
-	"#    | | --------------- MIDI status (event) byte (e.g. note on)\n"
-	"#    | | | ------------- data 1 (e.g. note number)\n"
-	"#    | | | | ----------- data 2 (e.g. velocity)\n"
-	"#    | | | | |\n"
-	"#    v v v v v\n"
-	"#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
-	"#       Arm         Mute       Queue      Delete\n"
-	"\n"
-	"32 # Number of sequences\n\n";
+        "\n[midi-control-out]\n"
+        "\n"
+        "#    ------------------- on/off (indicate is the section is enabled)\n"
+        "#    | ----------------- MIDI channel (0-15)\n"
+        "#    | | --------------- MIDI status (event) byte (e.g. note on)\n"
+        "#    | | | ------------- data 1 (e.g. note number)\n"
+        "#    | | | | ----------- data 2 (e.g. velocity)\n"
+        "#    | | | | |\n"
+        "#    v v v v v\n"
+        "#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
+        "#       Arm         Mute       Queue      Delete\n"
+        "\n"
+        "32 # Number of sequences\n\n";
 
     for (int seq=0; seq<32; ++seq)
     {
-	file << seq;
-	for (int a=0; a<midi_control_out::seq_action_max; ++a)
-	{
-	    if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::seq_action)a))
-	    {
-		event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
-		midibyte d0, d1;		
-		ev.get_data(d0, d1);
-		file << " [1 "
-		    << (unsigned)ev.get_channel() << " "
-		    << (unsigned)ev.get_status() << " "
-		    << (unsigned)d0 << " "
-		    << (unsigned)d1 << "]";
-	    } else {
-		file << " [0 0 0 0 0]";
-	    }		    
-	}
-	file << "\n";
+        file << seq;
+        for (int a=0; a<midi_control_out::seq_action_max; ++a)
+        {
+            if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::seq_action)a))
+            {
+                event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
+                midibyte d0, d1;                
+                ev.get_data(d0, d1);
+                file << " [1 "
+                    << (unsigned)ev.get_channel() << " "
+                    << (unsigned)ev.get_status() << " "
+                    << (unsigned)d0 << " "
+                    << (unsigned)d1 << "]";
+            } else {
+                file << " [0 0 0 0 0]";
+            }               
+        }
+        file << "\n";
     }
     
 #endif
