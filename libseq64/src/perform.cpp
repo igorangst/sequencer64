@@ -2975,6 +2975,9 @@ perform::pause_playing (bool songmode)
         m_usemidiclock = false;
         m_start_from_perfedit = false;      /* act like stop_playing()      */
     }
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_midi_ctrl_out->send_event(midi_control_out::action_pause);
+#endif
 }
 
 /**
@@ -3126,6 +3129,9 @@ perform::inner_start (bool songmode)
         m_condition_var.signal();
     }
     m_condition_var.unlock();
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_midi_ctrl_out->send_event(midi_control_out::action_play);
+#endif
 }
 
 /**
@@ -3150,6 +3156,9 @@ perform::inner_stop (bool midiclock)
     is_running(false);
     reset_sequences();
     m_usemidiclock = midiclock;
+#ifdef SEQ64_MIDI_CTRL_OUT
+    m_midi_ctrl_out->send_event(midi_control_out::action_stop);
+#endif
 }
 
 /**
