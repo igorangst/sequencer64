@@ -80,10 +80,24 @@ std::string seq_action_to_str(midi_control_out::seq_action a)
     default: return "UNKNOWN";
     }
 }
-    
+
+
+/* TODO: Need to handle screen sets. Since sequences themselves are
+ * ignorant about the current screen set, maybe we can centralise this
+ * knowledge inside this class, so before sending a sequence event, we
+ * check here if the sequence is in the active screen set, otherwise
+ * we drop the event. This requires that in the perform class, we do a
+ * "repaint" each time the screen set is changed. 
+ * 
+ * Also, maybe consider adding an option to the config file, making
+ * this behavior optional: So either absolute sequence actions (let
+ * the receiver do the math...), or sending events relative (modulo)
+ * the current screen set. 
+ *
+ */
 void midi_control_out::send_seq_event(int seq, seq_action what)
 {
-    printf("[ctrl-out] seq #%i %s\n", seq, seq_action_to_str(what).c_str());
+    // printf("[ctrl-out] seq #%i %s\n", seq, seq_action_to_str(what).c_str());
   
     if (seq < 0 || seq >= 32)
     {
@@ -115,7 +129,7 @@ event midi_control_out::get_seq_event(int seq, seq_action what) const
     
 void midi_control_out::set_seq_event(int seq, seq_action what, event& ev)
 {
-    printf("[set_seq_event] %i %i\n", seq, (int)what);
+    // printf("[set_seq_event] %i %i\n", seq, (int)what);
     m_seq_event[seq][what] = ev;
     m_seq_active[seq][what] = true;
 }
@@ -128,7 +142,7 @@ void midi_control_out::set_seq_event(int seq, seq_action what, int *eva)
     }
     if (eva[0])
     {
-        printf("[set_seq_event] %i %i\n", seq, (int)what);
+        // printf("[set_seq_event] %i %i\n", seq, (int)what);
         event ev;
         ev.set_channel(eva[1]);
         ev.set_status(eva[2]);
@@ -209,7 +223,7 @@ void midi_control_out::set_event(action what, int *eva)
     }
     if (eva[0])
     {
-        printf("[set_event] %i\n", (int)what);
+        // printf("[set_event] %i\n", (int)what);
         event ev;
         ev.set_channel(eva[1]);
         ev.set_status(eva[2]);
