@@ -1,0 +1,7 @@
+Notes on Windows
+Chris Ahlstrom
+2018-04-14 to 2018-05-13
+
+See README.windows in the top-level directory.
+
+# vim: sw=4 ts=4 wm=8 et ft=sh

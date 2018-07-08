@@ -17,7 +17,7 @@
  */
 
 /**
- * \file          qsabout.hpp
+ * \file          qsabout.cpp
  *
  *  The time bar shows markers and numbers for the measures of the song,
  *  and also depicts the left and right markers.
@@ -25,13 +25,24 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2018-01-01
- * \updates       2018-03-03
+ * \updates       2018-04-08
  * \license       GNU GPLv2 or above
  *
  */
 
 #include "qsabout.hpp"
+#include "seq64-config.h"
+
+/*
+ *  Qt's uic application allows a different output file-name, but not sure
+ *  if qmake can change the file-name.
+ */
+
+#ifdef SEQ64_QMAKE_RULES
+#include "forms/ui_qsabout.h"
+#else
 #include "forms/qsabout.ui.h"
+#endif
 
 namespace seq64
 {
@@ -60,7 +71,7 @@ qsabout::~qsabout()
 }               // namespace seq64
 
 /*
- * qsabout.hpp
+ * qsabout.cpp
  *
  * vim: sw=4 ts=4 wm=4 et ft=cpp
  */

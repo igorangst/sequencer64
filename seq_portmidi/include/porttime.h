@@ -17,38 +17,26 @@
  */
 
 /**
- * \file ptwinmm.c
+ * \file        porttime.h
  *
- *  porttime.h -- portable interface to millisecond timer
+ *      A portable interface to millisecond timer.
  *
- * CHANGE LOG FOR PORTTIME
+ * \library     sequencer64 application
+ * \author      PortMIDI team; modifications by Chris Ahlstrom
+ * \date        2017-08-21
+ * \updates     2018-05-25
+ * \license     GNU GPLv2 or above
  *
- * 10-Jun-03 Mark Nelson & RBD
+ * change log for porttime:
  *
- *  boost priority of timer thread in ptlinux.c implementation
+ *      10-Jun-03 Mark Nelson & RBD
+ *      Boost priority of timer thread in ptlinux.c implementation.
  */
+
+#include "platform_macros.h"
+#include "pminternal.h"                 /* int32_t  */
 
 /* Should there be a way to choose the source of time here? */
-
-#ifdef WIN32
-
-#ifndef INT32_DEFINED
-
-/**
- * Rather than having users install a special .h file for windows, just put the
- * required definitions inline here. portmidi.h uses these too, so the
- * definitions are (unfortunately) duplicated there
- */
-
-typedef int int32_t;
-typedef unsigned int uint32_t;
-#define INT32_DEFINED
-
-#endif
-
-#else
-#include <stdint.h>                         /* needed for int32_t */
-#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -73,11 +61,11 @@ extern "C"
 
 typedef enum
 {
-    ptNoError = 0,         /* success */
-    ptHostError = -10000,  /* a system-specific error occurred */
-    ptAlreadyStarted,      /* cannot start timer because it is already started */
-    ptAlreadyStopped,      /* cannot stop timer because it is already stopped */
-    ptInsufficientMemory   /* memory could not be allocated */
+    ptNoError = 0,         /**< Success.                                    */
+    ptHostError = -10000,  /**< A system-specific error occurred.           */
+    ptAlreadyStarted,      /**< Can't start timer, it is already started.   */
+    ptAlreadyStopped,      /**< Can't stop timer, it is already stopped.    */
+    ptInsufficientMemory   /**< Memory could not be allocated.              */
 
 } PtError;
 
@@ -91,25 +79,31 @@ typedef int32_t PtTimestamp;
  *
  */
 
-typedef void (PtCallback)(PtTimestamp timestamp, void *userData);
+typedef void (PtCallback) (PtTimestamp timestamp, void * userData);
 
 /*
  *  Pt_Start() starts a real-time service.
  *
- *  resolution is the timer resolution in ms. The time will advance every
+ * \param resolution
+ *      is the timer resolution in ms. The time will advance every
  *  resolution ms.
  *
- *  callback is a function pointer to be called every resolution ms.
+ * \param callback
+ *      Is a function pointer to be called every resolution ms.
  *
- *  userData is passed to callback as a parameter.
+ * \param userData
+ *      Is passed to callback as a parameter.
  *
- *  return value:
- *  Upon success, returns ptNoError. See PtError for other values.
+ * \return
+ *      Upon success, returns ptNoError. See PtError for other values.
  */
 
-PMEXPORT PtError Pt_Start (int resolution, PtCallback * callback, void * userData);
+PMEXPORT PtError Pt_Start
+(
+    int resolution, PtCallback * callback, void * userData
+);
 
-/*
+/**
  *  Pt_Stop() stops the timer.
  *
  *  return value:
@@ -118,27 +112,42 @@ PMEXPORT PtError Pt_Start (int resolution, PtCallback * callback, void * userDat
 
 PMEXPORT PtError Pt_Stop ();
 
-/*
+/**
  *  Pt_Started() returns true iff the timer is running.
  */
 
 PMEXPORT int Pt_Started ();
 
-/*
+/**
  *  Pt_Time() returns the current time in ms.
  */
 
 PMEXPORT PtTimestamp Pt_Time ();
 
-/*
+/**
  *  Pt_Sleep() pauses, allowing other threads to run.
  *
- *  duration is the length of the pause in ms. The true duration
- *  of the pause may be rounded to the nearest or next clock tick
- *  as determined by resolution in Pt_Start().
+ * \param duration
+ *      The length of the pause in milliseconds. The true duration of the
+ *      pause may be rounded to the nearest or next clock tick as determined
+ *      by resolution in Pt_Start().
  */
 
 PMEXPORT void Pt_Sleep (int32_t duration);
+
+/*
+ *  New functions to support setting the tempo and PPQN, as well as
+ *  converting PortMidi time to MIDI pulses (ticks).
+ */
+
+PMEXPORT void Pt_Set_Midi_Timing (double bpm, int ppqn);
+PMEXPORT long Pt_Time_To_Pulses (int tsms);
+PMEXPORT void Pt_Set_Midi_Timing (double bpm, int ppqn);
+PMEXPORT void Pt_Set_Bpm (double bpm);
+PMEXPORT void Pt_Set_Ppqn (int ppqn);
+PMEXPORT double Pt_Get_Bpm (void);
+PMEXPORT int Pt_Get_Tempo_Microseconds (void);
+PMEXPORT int Pt_Get_Ppqn (void);
 
 #ifdef __cplusplus
 }       // extern "C"

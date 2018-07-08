@@ -24,7 +24,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2018-02-26
+ * \updates       2018-05-01
  * \license       GNU GPLv2 or above
  *
  *  For a quick guide to the MIDI format, see, for example:
@@ -66,7 +66,8 @@
 #include <fstream>
 
 #include "app_limits.h"                 /* SEQ64_USE_MIDI_VECTOR            */
-#include "calculations.hpp"             /* bpm_from_tempo_us()              */
+#include "calculations.hpp"             /* seq64::bpm_from_tempo_us()       */
+#include "file_functions.hpp"           /* seq64::get_full_path()           */
 #include "perform.hpp"                  /* must precede midifile.hpp !      */
 #include "midifile.hpp"                 /* seq64::midifile                  */
 #include "sequence.hpp"                 /* seq64::sequence                  */
@@ -387,7 +388,12 @@ midifile::parse (perform & p, int screenset, bool importing)
         m_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate
     );
     m_error_is_fatal = false;
-    if (! file.is_open())
+    if (file.is_open())
+    {
+        std::string path = get_full_path(m_name);
+        printf("[Opened MIDI file, '%s']\n", path.c_str());
+    }
+    else
     {
         m_error_is_fatal = true;
         m_error_message = "Error opening MIDI file '";
@@ -1563,7 +1569,7 @@ midifile::parse_proprietary_track (perform & p, int file_size)
                 p.set_tempo_track_number(tempotrack);
         }
 
-#ifdef USE_SEQUENCE_COLOR       // DO NOT ENABLE, see SEQ64_SHOW_COLOR_PALETTE
+#ifdef USE_KEPLER34_SEQUENCE_COLOR       // DO NOT ENABLE, see SEQ64_SHOW_COLOR_PALETTE
 
         /**
          * Kepler34 (see Oli Kester's project on GitHub) supports coloring
@@ -1587,7 +1593,7 @@ midifile::parse_proprietary_track (perform & p, int file_size)
             }
         }
 
-#endif  // USE_SEQUENCE_COLOR
+#endif  // USE_KEPLER34_SEQUENCE_COLOR
 
 #ifdef USE_SEQUENCE_EDIT_MODE_XXX
 

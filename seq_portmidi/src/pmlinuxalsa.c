@@ -17,45 +17,51 @@
  */
 
 /**
- * \file pmlinuxalsa.c
+ * \file        pmlinuxalsa.c
  *
- * system specific definitions
+ *      System-specific definitions for Linux's ALSA MIDI subsystem.
  *
- * written by:
+ * \library     sequencer64 application
+ * \author      PortMIDI team; modifications by Chris Ahlstrom
+ * \date        2017-08-21
+ * \updates     2018-05-24
+ * \license     GNU GPLv2 or above
+ *
+ * Written by:
  *
  *  -   Roger Dannenberg (port to Alsa 0.9.x)
  *  -   Clemens Ladisch (provided code examples and invaluable consulting)
  *  -   Jason Cohen, Rico Colon, Matt Filippone (Alsa 0.5.x implementation)
  */
 
+#include <string.h>
+#include <stdlib.h>
 #include <alsa/asoundlib.h>
 
 #include "platform_macros.h"            /* UNUSED() parameter macro         */
-#include "stdlib.h"
+#include "easy_macros.h"                /* not_nullptr() macro, etc.        */
 #include "portmidi.h"
 #include "pmutil.h"
-#include "pminternal.h"
 #include "pmlinuxalsa.h"
-#include "string.h"
 #include "porttime.h"
 #include "pmlinux.h"
 
 /*
- * I used many print statements to debug this code. I left them in the
- * source, and you can turn them on by changing false to true below:
+ *  I used many print statements to debug this code. I left them in the
+ *  source, and you can turn them on by changing false to true below:
  */
 
-#define VERBOSE_ON          0
-#define VERBOSE             if (VERBOSE_ON)
+#define VERBOSE_ON          0                   // TEMPORARY
 
-#define MIDI_SYSEX          0xF0
-#define MIDI_EOX            0xF7
+/*
+ *  Check for ALSA version.
+ */
 
 #if SND_LIB_MAJOR == 0 && SND_LIB_MINOR < 9
 #error needs ALSA 0.9.0 or later
 #endif
 
-/*
+/**
  *  These defines are added to help store client/port information in the
  *  device descriptor.  One issue with the existing PortMidi library is that
  *  we're casting from a pointer to an integer of different size.  So we add
@@ -72,29 +78,30 @@
 
 #define MASK_DESCRIPTOR_PORT(x)         ( ((int) (intptr_t) (x)) & 0xff )
 
-/*
- * should be a typedef
- */
-
-#define BYTE unsigned char
-
 extern pm_fns_node pm_linuxalsa_in_dictionary;
 extern pm_fns_node pm_linuxalsa_out_dictionary;
 
 /**
- * all input comes here, output queue allocated on seq
+ * All input comes here, output queue allocated on seq.
  */
 
-static snd_seq_t * s_seq = NULL;
+static snd_seq_t * s_seq = nullptr;
 
 /**
- *
+ *  Provides an item to hold the ALSA queue.
  */
 
-static int s_queue, s_queue_used;       /* one for all ports, reference counted */
+static int s_queue;                 /* one for all ports, reference counted */
 
 /**
- *
+ *  A boolean that prevents the ALSA queue from getting reset if it has
+ *  already been set.
+ */
+
+static int s_queue_used;            /* one for all ports, reference counted */
+
+/**
+ *  Holds information about an ALSA port.
  */
 
 typedef struct alsa_descriptor_struct
@@ -109,7 +116,7 @@ typedef struct alsa_descriptor_struct
 } alsa_descriptor_node, * alsa_descriptor_type;
 
 /**
- *  get_alsa_error_text -- copy error text to potentially short string.
+ *  Copies error text to a potentially short string.
  */
 
 static void
@@ -144,7 +151,7 @@ get_alsa_error_text (char * msg, int len, int err)
 static PmError
 alsa_use_queue (void)
 {
-    if (s_queue_used == 0)
+    if (s_queue_used == 0 && not_nullptr(s_seq))
     {
         snd_seq_queue_tempo_t * tempo;
         s_queue = snd_seq_alloc_queue(s_seq);
@@ -154,8 +161,8 @@ alsa_use_queue (void)
             return pmHostError;
         }
         snd_seq_queue_tempo_alloca(&tempo);
-        snd_seq_queue_tempo_set_tempo(tempo, 480000);   // HARDWIRED
-        snd_seq_queue_tempo_set_ppq(tempo, 480);    // HARDWIRED
+        snd_seq_queue_tempo_set_tempo(tempo, Pt_Get_Tempo_Microseconds());
+        snd_seq_queue_tempo_set_ppq(tempo, Pt_Get_Ppqn());
         pm_hosterror = snd_seq_set_queue_tempo(s_seq, s_queue, tempo);
         if (pm_hosterror < 0)
             return pmHostError;
@@ -166,6 +173,43 @@ alsa_use_queue (void)
     ++s_queue_used;
     return pmNoError;
 }
+
+#if 0
+/*
+ * EXPERIMENTAL.
+ *
+ *  The s_queue must already exist.
+ */
+
+static void
+alsa_set_beats_per_minute (int tempo_us)
+{
+    if (s_queue >= 0 && not_nullptr(s_seq))
+    {
+        snd_seq_queue_tempo_t * tempo;
+        snd_seq_queue_tempo_alloca(&tempo);
+        snd_seq_queue_tempo_set_tempo(tempo, tempo_us);
+        (void) snd_seq_set_queue_tempo(s_seq, s_queue, tempo);
+
+        /*
+         * Do we have a snd_seq_restart_queue() to call?
+         */
+    }
+}
+
+static void
+alsa_set_ppqn (int ppqn)
+{
+    snd_seq_queue_tempo_t * tempo;
+    snd_seq_queue_tempo_alloca(&tempo);
+    snd_seq_queue_tempo_set_ppq(tempo, ppqn);
+
+    /*
+     * Do we have a snd_seq_restart_queue() to call?
+     */
+}
+
+#endif
 
 /**
  *
@@ -179,12 +223,13 @@ alsa_unuse_queue (void)
         snd_seq_stop_queue(s_seq, s_queue, NULL);
         snd_seq_drain_output(s_seq);
         snd_seq_free_queue(s_seq, s_queue);
-        VERBOSE printf("s_queue freed\n");
+        if (VERBOSE_ON)
+            printf("s_queue freed\n");
     }
 }
 
 /**
- * midi_message_length -- how many bytes in a message?
+ *  midi_message_length() -- how many bytes in a message?
  */
 
 static int
@@ -217,7 +262,7 @@ midi_message_length (PmMessage message)
 static PmError
 alsa_out_open (PmInternal * midi, void * UNUSED(driverinfo))
 {
-    void * client_port = descriptors[midi->device_id].descriptor;
+    void * client_port = pm_descriptors[midi->device_id].descriptor;
     alsa_descriptor_type desc = (alsa_descriptor_type)
         pm_alloc(sizeof(alsa_descriptor_node));
 
@@ -244,22 +289,19 @@ alsa_out_open (PmInternal * midi, void * UNUSED(driverinfo))
     midi->descriptor = desc;
 
 //                 ((((int) (intptr_t) (x)) >> 8) & 0xff)
-    desc->client = ((((int) (intptr_t) (client_port)) >> 8) & 0xff);
+//  desc->client = ((((int) (intptr_t) (client_port)) >> 8) & 0xff);
 
     desc->client = MASK_DESCRIPTOR_CLIENT(client_port);
     desc->port = MASK_DESCRIPTOR_PORT(client_port);
     desc->this_port = midi->device_id;
     desc->in_sysex = 0;
     desc->error = 0;
-
     err = snd_midi_event_new(PM_DEFAULT_SYSEX_BUFFER_SIZE, &desc->parser);
     if (err < 0)
         goto free_this_port;
 
-    if (midi->latency > 0)
+    if (midi->latency > 0)          /* must delay output using a queue */
     {
-        /* must delay output using a queue */
-
         err = alsa_use_queue();
         if (err < 0)
             goto free_parser;
@@ -306,13 +348,19 @@ alsa_out_open (PmInternal * midi, void * UNUSED(driverinfo))
 }
 
 /**
- *
+ * \note
+ *      For cases where the user does not supply a time function, we could
+ *      optimize the code by not starting Pt_Time and using the alsa tick time
+ *      instead. I didn't do this because it would entail changing the queue
+ *      management to start the queue tick count when PortMidi is initialized
+ *      and keep it running until PortMidi is terminated. (This should be
+ *      simple, but it's not how the code works now.) -- RBD
  */
 
 static PmError
 alsa_write_byte
 (
-    PmInternal * midi, unsigned char byte, PmTimestamp timestamp
+    PmInternal * midi, midibyte_t byte, PmTimestamp timestamp
 )
 {
     alsa_descriptor_type desc = (alsa_descriptor_type) midi->descriptor;
@@ -343,37 +391,35 @@ alsa_write_byte
             if (when < 0)
                 when = 0;
 
-            VERBOSE printf("timestamp %d now %d latency %d, ",
-                           (int) timestamp, (int) now, midi->latency);
-            VERBOSE printf("scheduling event after %d\n", when);
+            if (VERBOSE_ON)
+                printf
+                (
+                    "Timestamp %d now %d latency %d, ",
+                    (int) timestamp, (int) now, midi->latency
+                );
 
-            /* message is sent in relative ticks, where 1 tick = 1 ms */
-
-            snd_seq_ev_schedule_tick(&ev, s_queue, 1, when);
+            if (VERBOSE_ON)
+                printf("Scheduling event after %d\n", when);
 
             /*
-             * NOTE: for cases where the user does not supply a time function,
-             * we could optimize the code by not starting Pt_Time and using
-             * the alsa tick time instead. I didn't do this because it would
-             * entail changing the queue management to start the queue tick
-             * count when PortMidi is initialized and keep it running until
-             * PortMidi is terminated. (This should be simple, but it's not
-             * how the code works now.) -RBD
+             * Message is sent in relative ticks, where 1 tick = 1 ms. See the
+             * function banner note.
              */
 
+            snd_seq_ev_schedule_tick(&ev, s_queue, 1, when);
         }
         else
         {
-            /* send event out without queueing */
+            /*
+             * ev.queue = SND_SEQ_QUEUE_DIRECT;
+             * ev.dest.client = SND_SEQ_ADDRESS_SUBSCRIBERS;
+             */
 
-            VERBOSE printf("direct\n");
-
-            /* ev.queue = SND_SEQ_QUEUE_DIRECT;
-               ev.dest.client = SND_SEQ_ADDRESS_SUBSCRIBERS; */
-
-            snd_seq_ev_set_direct(&ev);
+            snd_seq_ev_set_direct(&ev);     /* send event out without queueing */
         }
-        VERBOSE printf("sending event\n");
+        if (VERBOSE_ON)
+            printf("Sending event\n");
+
         err = snd_seq_event_output(s_seq, &ev);
         if (err < 0)
         {
@@ -400,14 +446,18 @@ alsa_out_close (PmInternal * midi)
 
     if (pm_hosterror)
     {
-        // if there's an error, try to delete the port anyway, but don't
-        // change the pm_hosterror value so we retain the first error
+        /*
+         * If there's an error, try to delete the port anyway, but don't
+         * change the pm_hosterror value so we retain the first error
+         */
 
         snd_seq_delete_port(s_seq, desc->this_port);
     }
     else
     {
-        // if there's no error, delete the port and retain any error
+        /*
+         * If there's no error, delete the port and retain any error
+         */
 
         pm_hosterror = snd_seq_delete_port(s_seq, desc->this_port);
     }
@@ -415,7 +465,7 @@ alsa_out_close (PmInternal * midi)
         alsa_unuse_queue();
 
     snd_midi_event_free(desc->parser);
-    midi->descriptor = NULL;    /* destroy the pointer to signify "closed" */
+    midi->descriptor = nullptr;    /* destroy pointer to signify "closed" */
     pm_free(desc);
     if (pm_hosterror)
     {
@@ -435,7 +485,7 @@ alsa_out_close (PmInternal * midi)
 static PmError
 alsa_in_open (PmInternal * midi, void * UNUSED(driverinfo))
 {
-    void * client_port = descriptors[midi->device_id].descriptor;
+    void * client_port = pm_descriptors[midi->device_id].descriptor;
     alsa_descriptor_type desc = (alsa_descriptor_type)
         pm_alloc(sizeof(alsa_descriptor_node));
 
@@ -463,7 +513,9 @@ alsa_in_open (PmInternal * midi, void * UNUSED(driverinfo))
     if (err < 0)
         goto free_queue;
 
-    /* fill in fields of desc, which is passed to pm_write routines */
+    /*
+     * Fill in the fields of desc, which is passed to pm_write routines.
+     */
 
     midi->descriptor = desc;
     desc->client = MASK_DESCRIPTOR_CLIENT(client_port);
@@ -472,8 +524,12 @@ alsa_in_open (PmInternal * midi, void * UNUSED(driverinfo))
     desc->in_sysex = 0;
     desc->error = 0;
 
-    VERBOSE printf("snd_seq_connect_from: %d %d %d\n",
-                   desc->this_port, desc->client, desc->port);
+    if (VERBOSE_ON)
+        printf
+        (
+            "snd_seq_connect_from: %d %d %d\n",
+            desc->this_port, desc->client, desc->port
+        );
 
     snd_seq_port_subscribe_alloca(&sub);
     addr.client = snd_seq_client_id(s_seq);
@@ -484,13 +540,17 @@ alsa_in_open (PmInternal * midi, void * UNUSED(driverinfo))
     snd_seq_port_subscribe_set_sender(sub, &addr);
     snd_seq_port_subscribe_set_time_update(sub, 1);
 
-    /* this doesn't seem to work: messages come in with real timestamps */
+    /*
+     * This doesn't seem to work: messages come in with real timestamps.
+     */
 
     snd_seq_port_subscribe_set_time_real(sub, 0);
     err = snd_seq_subscribe_port(s_seq, sub);
 
-    /* err =
-       snd_seq_connect_from(s_seq, desc->this_port, desc->client, desc->port); */
+    /*
+     * err = snd_seq_connect_from(s_seq, desc->this_port, desc->client,
+     *      desc->port);
+     */
 
     if (err < 0)
         goto free_this_port;            /* clean up and return on error */
@@ -552,14 +612,13 @@ alsa_in_close (PmInternal * midi)
 }
 
 /**
- *
- * NOTE: ALSA documentation is vague. This is supposed to remove any pending
- * output messages. If you can test and confirm this code is correct, please
- * update this comment. -RBD
- *
- * Unfortunately, I can't even compile it -- my ALSA version does not
- * implement snd_seq_remove_events_t, so this does not compile. I'll try
- * again, but it looks like I'll need to upgrade my entire Linux OS -RBD
+ * \note
+ *      ALSA documentation is vague. This is supposed to remove any pending
+ *      output messages. If you can test and confirm this code is correct,
+ *      please update this comment.  Unfortunately, I can't even compile it --
+ *      my ALSA version does not implement snd_seq_remove_events_t, so this
+ *      does not compile. I'll try again, but it looks like I'll need to
+ *      upgrade my entire Linux OS. -- RBD
  */
 
 static PmError
@@ -574,14 +633,14 @@ alsa_abort (PmInternal * UNUSED(midi))
     snd_seq_remove_events_set_dest(&info, &addr);
     snd_seq_remove_events_set_condition(&info, SND_SEQ_REMOVE_DEST);
     pm_hosterror = snd_seq_remove_events(s_seq, &info);
-    if (pm_hosterror) {
-        get_alsa_error_text(pm_hosterror_text, PM_HOST_ERROR_MSG_LEN,
-                            pm_hosterror);
+    if (pm_hosterror)
+    {
+        get_alsa_error_text(pm_hosterror_text, PM_HOST_ERROR_MSG_LEN, pm_hosterror);
         return pmHostError;
     }
     */
 
-    printf("WARNING: alsa_abort() not implemented\n");
+    printf("WARNING: alsa_abort() not implemented.\n");
     return pmNoError;
 }
 
@@ -598,7 +657,10 @@ alsa_write_flush (PmInternal * midi, PmTimestamp UNUSED(timestamp))
 {
     alsa_descriptor_type desc = (alsa_descriptor_type) midi->descriptor;
 
-    // VERBOSE printf("snd_seq_drain_output: 0x%x\n", (unsigned int) s_seq);
+#if 0
+    if (VERBOSE_ON)
+        printf("snd_seq_drain_output: 0x%x\n", (unsigned) s_seq);
+#endif
 
     desc->error = snd_seq_drain_output(s_seq);
     if (desc->error < 0)
@@ -619,10 +681,12 @@ alsa_write_short (PmInternal * midi, PmEvent * event)
     PmMessage msg = event->message;
     int i;
     alsa_descriptor_type desc = (alsa_descriptor_type) midi->descriptor;
-    for (i = 0; i < bytes; i++)
+    for (i = 0; i < bytes; ++i)
     {
-        unsigned char byte = msg;
-        VERBOSE printf("sending 0x%x\n", byte);
+        midibyte_t byte = msg;
+        if (VERBOSE_ON)
+            printf("Sending 0x%x\n", byte);
+
         alsa_write_byte(midi, byte, event->timestamp);
         if (desc->error < 0)
             break;
@@ -648,10 +712,10 @@ alsa_sysex (PmInternal * UNUSED(midi), PmTimestamp UNUSED(timestamp))
 
 /**
  *  Linux implementation does not use this synchronize function.  Apparently,
- *  Alsa data is relative to the time you send it, and there is no reference.
- *  If this is true, this is a serious shortcoming of Alsa. If not true, then
+ *  ALSA data is relative to the time you send it, and there is no reference.
+ *  If this is true, this is a serious shortcoming of ALSA. If not true, then
  *  PortMidi has a serious shortcoming -- it should be scheduling relative to
- *  Alsa's time reference.
+ *  ALSA's time reference.
  */
 
 static PmTimestamp
@@ -668,24 +732,22 @@ static void
 handle_event (snd_seq_event_t * ev)
 {
     int device_id = ev->dest.port;
-    PmInternal * midi = descriptors[device_id].internalDescriptor;
-    PmEvent pm_ev;
+    PmInternal * midi = pm_descriptors[device_id].internalDescriptor;
     PmTimeProcPtr time_proc = midi->time_proc;
+    PmEvent pm_ev;
     PmTimestamp timestamp;
 
-    /* time stamp should be in ticks, using our queue where 1 tick = 1ms */
+    /*
+     * Time stamp should be in ticks, using our queue, where 1 tick = 1 ms.
+     */
 
     assert((ev->flags & SND_SEQ_TIME_STAMP_MASK) == SND_SEQ_TIME_STAMP_TICK);
-
-    /* if no time_proc, just return "native" ticks (ms) */
-
     if (time_proc == NULL)
     {
-        timestamp = ev->time.tick;
+        timestamp = ev->time.tick;  /* no time_proc, return native ticks, ms */
     }
-    else
+    else                            /* translate time to time_proc basis */
     {
-        /* translate time to time_proc basis */
 
         snd_seq_queue_status_t *queue_status;
         snd_seq_queue_status_alloca(&queue_status);
@@ -701,32 +763,28 @@ handle_event (snd_seq_event_t * ev)
     {
     case SND_SEQ_EVENT_NOTEON:
         pm_ev.message = Pm_Message(0x90 | ev->data.note.channel,
-            ev->data.note.note & 0x7f,
-            ev->data.note.velocity & 0x7f);
+            ev->data.note.note & 0x7f, ev->data.note.velocity & 0x7f);
 
         pm_read_short(midi, &pm_ev);
         break;
 
     case SND_SEQ_EVENT_NOTEOFF:
         pm_ev.message = Pm_Message(0x80 | ev->data.note.channel,
-            ev->data.note.note & 0x7f,
-            ev->data.note.velocity & 0x7f);
+            ev->data.note.note & 0x7f, ev->data.note.velocity & 0x7f);
 
         pm_read_short(midi, &pm_ev);
         break;
 
     case SND_SEQ_EVENT_KEYPRESS:
         pm_ev.message = Pm_Message(0xa0 | ev->data.note.channel,
-            ev->data.note.note & 0x7f,
-            ev->data.note.velocity & 0x7f);
+            ev->data.note.note & 0x7f, ev->data.note.velocity & 0x7f);
 
         pm_read_short(midi, &pm_ev);
         break;
 
     case SND_SEQ_EVENT_CONTROLLER:
         pm_ev.message = Pm_Message(0xb0 | ev->data.note.channel,
-            ev->data.control.param & 0x7f,
-            ev->data.control.value & 0x7f);
+            ev->data.control.param & 0x7f, ev->data.control.value & 0x7f);
 
         pm_read_short(midi, &pm_ev);
         break;
@@ -757,19 +815,18 @@ handle_event (snd_seq_event_t * ev)
         if (ev->data.control.param < 0x20)
         {
             pm_ev.message = Pm_Message(0xb0 | ev->data.note.channel,
-                ev->data.control.param,
-                (ev->data.control.value >> 7) & 0x7f);
+                ev->data.control.param, (ev->data.control.value >> 7) & 0x7f);
+
             pm_read_short(midi, &pm_ev);
             pm_ev.message = Pm_Message(0xb0 | ev->data.note.channel,
-                ev->data.control.param + 0x20,
-                ev->data.control.value & 0x7f);
+                ev->data.control.param + 0x20, ev->data.control.value & 0x7f);
+
             pm_read_short(midi, &pm_ev);
         }
         else
         {
             pm_ev.message = Pm_Message(0xb0 | ev->data.note.channel,
-                ev->data.control.param & 0x7f,
-                ev->data.control.value & 0x7f);
+                ev->data.control.param & 0x7f, ev->data.control.value & 0x7f);
 
             pm_read_short(midi, &pm_ev);
         }
@@ -777,23 +834,18 @@ handle_event (snd_seq_event_t * ev)
 
     case SND_SEQ_EVENT_SONGPOS:
         pm_ev.message = Pm_Message(0xf2,
-            ev->data.control.value & 0x7f,
-            (ev->data.control.value >> 7) & 0x7f);
+            ev->data.control.value & 0x7f, (ev->data.control.value >> 7) & 0x7f);
 
         pm_read_short(midi, &pm_ev);
         break;
 
     case SND_SEQ_EVENT_SONGSEL:
-        pm_ev.message = Pm_Message(0xf3,
-            ev->data.control.value & 0x7f, 0);
-
+        pm_ev.message = Pm_Message(0xf3, ev->data.control.value & 0x7f, 0);
         pm_read_short(midi, &pm_ev);
         break;
 
     case SND_SEQ_EVENT_QFRAME:
-        pm_ev.message = Pm_Message(0xf1,
-            ev->data.control.value & 0x7f, 0);
-
+        pm_ev.message = Pm_Message(0xf1, ev->data.control.value & 0x7f, 0);
         pm_read_short(midi, &pm_ev);
         break;
 
@@ -834,59 +886,95 @@ handle_event (snd_seq_event_t * ev)
 
     case SND_SEQ_EVENT_SYSEX:
         {
-            const BYTE * ptr = (const BYTE *) ev->data.ext.ptr;
+            /*
+             * Assume there is one SysEx byte to process.
+             */
 
-            /* assume there is one sysex byte to process */
-
+            const midibyte_t * ptr = (const midibyte_t *) ev->data.ext.ptr;
             pm_read_bytes(midi, ptr, ev->data.ext.len, timestamp);
             break;
         }
     }
 }
 
+#ifdef USE_PORTMIDI_SIMPLE_ALSA_POLL
+
 /**
- * Poll!
+ *  This version just check for data.  DOES NOT WORK.
  *
- * Checks for and ignore errors, e.g. input overflow.
+ * \return
+ *      Returns pmGotData if any data is pending.  Otherwise, pmNoData is
+ *      returned.
+ */
+
+static PmError
+alsa_poll (PmInternal * UNUSED(midi))
+{
+    int bytes = snd_seq_event_input_pending(s_seq, FALSE);
+#if defined PLATFORM_DEBUG_TMI
+    if (bytes > 0)
+    {
+        infoprint("alsa_poll(): incoming MIDI events detected");
+    }
+#endif
+    return bytes > 0 ?  pmGotData : pmNoData ;
+}
+
+#else   // USE_PORTMIDI_SIMPLE_ALSA_POLL
+
+/**
+ *  Poll!  Checks for and ignore errors, e.g. input overflow.
  *
- * Note: if there's overflow, this should be reported
- * all the way through to client. Since input from all
- * devices is merged, we need to find all input devices
- * and set all to the overflow state.
- * NOTE: this assumes every input is ALSA based.
+ *  There is an expensive check (while loop) for input data, and it gets data
+ *  from device.
+ *
+ *  snd_seq_event_input_pending(s_seq, TRUE) checks the presence of events on
+ *  the sequencer FIFO; these events are transferred to the input buffer, and
+ *  the number of received events is returned.
+ *
+ *  snd_seq_event_input_pending(s_seq, FALSE) returns 0 if no events remain
+ *  in the input buffer.  We think this is all we need for the poll function!
+ *
+ * \note
+ *      If there's overflow, this should be reported all the way through to
+ *      client. Since input from all devices is merged, we need to find all
+ *      input devices and set all to the overflow state.  NOTE: this assumes
+ *      every input is ALSA based.
  */
 
 static PmError
 alsa_poll (PmInternal * UNUSED(midi))
 {
     snd_seq_event_t * ev;
-
-    /* expensive check for input data, gets data from device: */
-
-    while (snd_seq_event_input_pending(s_seq, TRUE) > 0)
+    while (snd_seq_event_input_pending(s_seq, TRUE) > 0)    /* expensive!   */
     {
-        /* cheap check on local input buffer, see note above. */
+        /*
+         * Cheap check on local input buffer.
+         */
 
         while (snd_seq_event_input_pending(s_seq, FALSE) > 0)
         {
+#if defined PLATFORM_DEBUG_TMI
+            infoprint("alsa_poll(): incoming MIDI events detected");
+#endif
             int rslt = snd_seq_event_input(s_seq, &ev);
             if (rslt >= 0)
             {
-                handle_event(ev);
+                handle_event(ev);                           /* much work!   */
             }
             else if (rslt == -ENOSPC)
             {
                 int i;
                 for (i = 0; i < pm_descriptor_index; i++)
                 {
-                    if (descriptors[i].pub.input)
+                    if (pm_descriptors[i].pub.input)
                     {
                         PmInternal * midi = (PmInternal *)
-                                descriptors[i].internalDescriptor;
+                                pm_descriptors[i].internalDescriptor;
 
                         /* careful, device may not be open! */
 
-                        if (midi)
+                        if (not_nullptr(midi))
                             Pm_SetOverflow(midi->queue);
                     }
                 }
@@ -896,11 +984,13 @@ alsa_poll (PmInternal * UNUSED(midi))
     return pmNoError;
 }
 
+#endif   // USE_PORTMIDI_SIMPLE_ALSA_POLL
+
 /**
  *
  */
 
-static unsigned int
+static unsigned
 alsa_has_host_error (PmInternal * midi)
 {
     alsa_descriptor_type desc = (alsa_descriptor_type) midi->descriptor;
@@ -909,10 +999,11 @@ alsa_has_host_error (PmInternal * midi)
 
 /**
  *
+ *  alsa_get_host_error (PmInternal * midi, char * msg, unsigned len)
  */
 
 static void
-alsa_get_host_error (PmInternal * midi, char * msg, unsigned int len)
+alsa_get_host_error (struct pm_internal_struct * midi, char * msg, unsigned len)
 {
     alsa_descriptor_type desc = (alsa_descriptor_type) midi->descriptor;
     int err = (pm_hosterror || desc->error);
@@ -961,12 +1052,11 @@ pm_fns_node pm_linuxalsa_out_dictionary =
     alsa_get_host_error
 };
 
-
 /**
- * pm_strdup -- copy a string to the heap. Use this rather than strdup so
- *    that we call pm_alloc, not malloc. This allows portmidi to avoid
- *    malloc which might cause priority inversion. Probably ALSA is going
- *    to call malloc anyway, so this extra work here may be pointless.
+ *  Copies a string to the heap. Use this function, rather than strdup(), so
+ *  that we call pm_alloc(), not malloc(). This allows PortMidi to avoid
+ *  malloc() which might cause priority inversion. Probably ALSA is going to
+ *  call malloc()l anyway, so this extra work here may be pointless.
  */
 
 char *
@@ -979,14 +1069,13 @@ pm_strdup (const char * s)
 }
 
 /**
- * Previously, the last parameter was SND_SEQ_NONBLOCK, but this
- * would cause messages to be dropped if the ALSA buffer fills up.
- * The correct behavior is for writes to block until there is
- * room to send all the data. The client should normally allocate
- * a large enough buffer to avoid blocking on output.
- * Now that blocking is enabled, the seq_event_input() will block
- * if there is no input data. This is not what we want, so must
- * call seq_event_input_pending() to avoid blocking.
+ *  Previously, the last parameter to snd_seq_opten() was SND_SEQ_NONBLOCK,
+ *  but this would cause messages to be dropped if the ALSA buffer fills up.
+ *  The correct behavior is for writes to block until there is room to send
+ *  all the data. The client should normally allocate a large enough buffer to
+ *  avoid blocking on output.  Now that blocking is enabled, the
+ *  seq_event_input() will block if there is no input data. This is not what
+ *  we want, so must call seq_event_input_pending() to avoid blocking.
  */
 
 PmError
@@ -994,55 +1083,67 @@ pm_linuxalsa_init (void)
 {
     snd_seq_client_info_t * cinfo;
     snd_seq_port_info_t * pinfo;
-    unsigned int caps;
+    unsigned caps;
     int err = snd_seq_open(&s_seq, "default", SND_SEQ_OPEN_DUPLEX, 0);
     if (err < 0)
         return err;
 
     snd_seq_client_info_alloca(&cinfo);
     snd_seq_port_info_alloca(&pinfo);
-
     snd_seq_client_info_set_client(cinfo, -1);
     while (snd_seq_query_next_client(s_seq, cinfo) == 0)
     {
-        snd_seq_port_info_set_client(pinfo, snd_seq_client_info_get_client(cinfo));
-        snd_seq_port_info_set_port(pinfo, -1);
+        int client = snd_seq_client_info_get_client(cinfo);
+        int port = -1;
+        const char * portname = "unknown";
+        snd_seq_port_info_set_client(pinfo, client);
+        snd_seq_port_info_set_port(pinfo, port);
         while (snd_seq_query_next_port(s_seq, pinfo) == 0)
         {
-            if (snd_seq_port_info_get_client(pinfo) == SND_SEQ_CLIENT_SYSTEM)
+            client = snd_seq_client_info_get_client(cinfo);
+            if (client == SND_SEQ_CLIENT_SYSTEM)
                 continue; /* ignore Timer and Announce ports on client 0 */
 
             caps = snd_seq_port_info_get_capability(pinfo);
-            if (!(caps & (SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE)))
+            if
+            (
+                ! (
+                    caps &
+                    (SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE)
+                )
+            )
+            {
                 continue; /* ignore if you cannot read or write port */
+            }
 
             if (caps & SND_SEQ_PORT_CAP_SUBS_WRITE)
             {
                 if (pm_default_output_device_id == -1)
                     pm_default_output_device_id = pm_descriptor_index;
 
+                portname = snd_seq_port_info_get_name(pinfo);
+                client = snd_seq_port_info_get_client(pinfo);
+                port = snd_seq_port_info_get_port(pinfo);
                 pm_add_device
                 (
-                    "ALSA", pm_strdup(snd_seq_port_info_get_name(pinfo)),
-                    FALSE,
-                    MAKE_DESCRIPTOR
-                    (
-                        snd_seq_port_info_get_client(pinfo),
-                        snd_seq_port_info_get_port(pinfo)
-                    ),
-                    &pm_linuxalsa_out_dictionary);
+                    "ALSA", pm_strdup(portname), FALSE,
+                    MAKE_DESCRIPTOR(client, port),
+                    &pm_linuxalsa_out_dictionary,
+                    client, port                    /* new parameters   */
+                );
             }
             if (caps & SND_SEQ_PORT_CAP_SUBS_READ)
             {
                 if (pm_default_input_device_id == -1)
                     pm_default_input_device_id = pm_descriptor_index;
 
-                pm_add_device("ALSA",
-                    pm_strdup(snd_seq_port_info_get_name(pinfo)),
-                    TRUE,
-                    MAKE_DESCRIPTOR(snd_seq_port_info_get_client(pinfo),
-                        snd_seq_port_info_get_port(pinfo)),
-                    &pm_linuxalsa_in_dictionary);
+                pm_add_device
+                (
+                    "ALSA", pm_strdup(portname), TRUE,
+                    MAKE_DESCRIPTOR(client, port),
+                    &pm_linuxalsa_in_dictionary,
+                    client, port                    /* new parameters   */
+                );
             }
         }
     }
@@ -1059,8 +1160,8 @@ pm_linuxalsa_term (void)
     if (s_seq)
     {
         snd_seq_close(s_seq);
-        pm_free(descriptors);
-        descriptors = NULL;
+        pm_free(pm_descriptors);
+        pm_descriptors = nullptr;
         pm_descriptor_index = 0;
         pm_descriptor_max = 0;
     }

@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-11-25
- * \updates       2018-01-03
+ * \updates       2018-05-09
  * \license       GNU GPLv2 or above
  *
  *  This file provides a cross-platform implementation of MIDI support.
@@ -291,9 +291,8 @@ midibase::set_name
             bus_name(busname);              // bus_name(alias);
         }
         else
-        {
             snprintf(alias, sizeof alias, "%s", portname.c_str());
-        }
+
         snprintf                            /* copy the client name parts */
         (
             name, sizeof name, "[%d] %d:%d %s",
@@ -454,6 +453,8 @@ midibase::connect_name () const
 /**
  *  Polls for MIDI events.
  *
+ *  EXPERIMENTAL FIX FOR PORTMIDI BUG BUT NEEDED FOR ALL.
+ *
  * \return
  *      Returns a value greater than 0 if MIDI events are available.
  *      Otherwise 0 is returned, or -1 for some APIs (ALSA) when an internal
@@ -463,7 +464,7 @@ midibase::connect_name () const
 int
 midibase::poll_for_midi ()
 {
-    return api_poll_for_midi();
+    return m_inputing ? api_poll_for_midi() : 0 ;
 }
 
 /**
@@ -609,8 +610,9 @@ midibase::flush ()
 }
 
 /**
- *  Initialize the clock, continuing from the given tick.  This function doesn't
- *  depend upon the MIDI API in use.
+ *  Initialize the clock, continuing from the given tick.  This function
+ *  doesn't depend upon the MIDI API in use.  Here, e_clock_off and
+ *  e_clock_disabled have the same effect... none.
  *
  * \param tick
  *      The starting tick.
@@ -668,7 +670,7 @@ midibase::continue_from (midipulse tick)
         starting_tick += pp16th;
 
     m_lasttick = starting_tick - 1;
-    if (m_clock_type != e_clock_off)
+    if (clock_enabled())
     {
         api_continue_from(tick, beats);
     }
@@ -676,14 +678,14 @@ midibase::continue_from (midipulse tick)
 
 /**
  *  This function gets the MIDI clock a-runnin', if the clock type is not
- *  e_clock_off.
+ *  e_clock_off or e_clock_disabled.
  */
 
 void
 midibase::start ()
 {
     m_lasttick = -1;
-    if (m_clock_type != e_clock_off)
+    if (clock_enabled())
     {
         api_start();
     }
@@ -731,6 +733,13 @@ void
 midibase::stop ()
 {
     m_lasttick = -1;
+
+    /*
+     * Hmmmmm.
+     *
+     * if (clock_enabled())
+     */
+
     if (m_clock_type != e_clock_off)
     {
         api_stop();
@@ -738,8 +747,8 @@ midibase::stop ()
 }
 
 /**
- *  Generates the MIDI clock, starting at the given tick value.  The number of
- *  ticks needed is calculated.
+ *  Generates the MIDI clock, starting at the given tick value.  The number
+ *  of ticks needed is calculated.
  *
  * \threadsafe
  *
@@ -751,7 +760,7 @@ void
 midibase::clock (midipulse tick)
 {
     automutex locker(m_mutex);
-    if (m_clock_type != e_clock_off)
+    if (clock_enabled())
     {
         bool done = m_lasttick >= tick;
         int ct = clock_ticks_from_ppqn(m_ppqn);         /* ppqn / 24        */
@@ -760,13 +769,7 @@ midibase::clock (midipulse tick)
             ++m_lasttick;
             done = m_lasttick >= tick;
             if ((m_lasttick % ct) == 0)                 /* tick time yet?   */
-            {
                 api_clock(tick);
-
-                /*
-                 * TMI: printf("midibase::clock(%ld)\n", tick);
-                 */
-            }
         }
         api_flush();                                    /* and send it out  */
     }

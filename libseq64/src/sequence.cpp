@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2018-03-04
+ * \updates       2018-06-02
  * \license       GNU GPLv2 or above
  *
  *  The functionality of this class also includes handling some of the
@@ -79,6 +79,12 @@ namespace seq64
 event_list sequence::m_events_clipboard;
 
 /**
+ *  Provides the default name/title for the sequence.
+ */
+
+const std::string sequence::sm_default_name = "Untitled";
+
+/**
  *  Principal constructor.
  *
  * \param ppqn
@@ -122,10 +128,8 @@ sequence::sequence (int ppqn)
     m_song_recording_snap       (false),
     m_song_record_tick       (0),
 #endif
-#ifdef SEQ64_STAZED_EXPAND_RECORD
     m_overwrite_recording       (false),
     m_loop_reset                (false),
-#endif
     m_unit_measure              (0),
     m_dirty_main                (true),
     m_dirty_edit                (true),
@@ -149,7 +153,7 @@ sequence::sequence (int ppqn)
     m_clocks_per_metronome      (24),
     m_32nds_per_quarter         (8),
     m_us_per_quarter_note       (tempo_us_from_bpm(SEQ64_DEFAULT_BPM)),
-    m_rec_vol                   (0),
+    m_rec_vol                   (SEQ64_PRESERVE_VELOCITY),
     m_note_on_velocity          (SEQ64_DEFAULT_NOTE_ON_VELOCITY),
     m_note_off_velocity         (SEQ64_DEFAULT_NOTE_OFF_VELOCITY),
     m_musical_key               (SEQ64_KEY_OF_C),
@@ -968,7 +972,7 @@ void
 sequence::set_rec_vol (int recvol)
 {
     automutex locker(m_mutex);
-    bool valid = recvol >= 0;                       /* not "m_rec_vol >= 0"! */
+    bool valid = recvol >= 0;
     if (valid)
         valid = recvol <= SEQ64_MAX_NOTE_ON_VELOCITY;
 
@@ -1060,6 +1064,13 @@ sequence::off_queued ()
 #ifdef SEQ64_SONG_RECORDING
     m_off_from_snap = true;
 #endif
+#ifdef SEQ64_MIDI_CTRL_OUT
+    if (get_playing()) {
+        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm);
+    } else {
+        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute);
+    }
+#endif
     set_dirty_mp();
 }
 
@@ -1082,7 +1093,6 @@ sequence::on_queued ()
 #ifdef SEQ64_MIDI_CTRL_OUT
     m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue);
 #endif
-
 }
 
 #endif  // SEQ64_USE_AUTO_SCREENSET_QUEUE
@@ -2249,16 +2259,12 @@ sequence::grow_selected (midipulse delta)
             }
             else if (er.is_marked())                /* non-Note event?      */
             {
-#ifdef SEQ64_NON_NOTE_EVENT_ADJUSTMENT              /* currenty defined     */
                 event e = er;                       /* copy original event  */
                 midipulse ontime = er.get_timestamp();
                 midipulse newtime = clip_timestamp(ontime, ontime + delta);
                 e.set_timestamp(newtime);           /* adjust time-stamp    */
                 add_event(e);                       /* add adjusted event   */
                 modify();
-#else
-                er.unmark();                        /* unmark old version   */
-#endif
             }
         }
         if (remove_marked())
@@ -2986,7 +2992,10 @@ sequence::add_note
             add_event(e);
 
             e.set_status(EVENT_NOTE_OFF);
-            e.set_data(note, midibyte(m_note_off_velocity));    /* HARD-WIRED */
+
+	    // HOTFIX: will be consitant with how m_note_on_velocity is handled above, enable 0 velocity (a standard ?) for note off when not playing
+            //e.set_data(note, midibyte(m_note_off_velocity));    /* HARD-WIRED */
+            e.set_data(note, hardwire ? midibyte(m_note_off_velocity) : 0);
             e.set_timestamp(tick + len);
             result = add_event(e);
         }
@@ -3241,14 +3250,13 @@ sequence::stream_event (event & ev)
     bool result = channels_match(ev);           /* set if channel matches   */
     if (result)
     {
-#ifdef SEQ64_STAZED_EXPAND_RECORD
-
-        /*
-         * If in overwrite record more, any events after reset should clear
-         * the old items from the previous pass through the loop.
+        /**
+         * If in overwrite loop-record mode, any events after reset should
+         * clear the old items from the previous pass through the loop.
          *
-         * TODO:  If the last event was a Note Off, we should clear it here.
-         *        How?
+         * \todo
+         *      If the last event was a Note Off, we should clear it here, and
+         *      how?
          */
 
         if (get_overwrite_rec() && get_loop_reset())
@@ -3256,8 +3264,6 @@ sequence::stream_event (event & ev)
             set_loop_reset(false);
             remove_all();                       /* clear old items          */
         }
-
-#endif
         ev.set_status(ev.get_status());         /* clear the channel nybble */
         ev.mod_timestamp(m_length);             /* adjust the tick          */
         if (m_recording)
@@ -3282,7 +3288,9 @@ sequence::stream_event (event & ev)
 
                 if (ev.is_note_on())
                 {
-                    bool keepvelocity = m_rec_vol == SEQ64_PRESERVE_VELOCITY;
+                    bool keepvelocity =
+                        m_rec_vol == SEQ64_PRESERVE_VELOCITY || m_rec_vol == 0;
+
                     int velocity = int(ev.get_note_velocity());
                     if (velocity == 0)
                         velocity = SEQ64_DEFAULT_NOTE_ON_VELOCITY;
@@ -4396,36 +4404,6 @@ sequence::get_next_event (midibyte & status, midibyte & cc)
 }
 
 /**
- *  Kepler34
- */
-
-bool
-sequence::get_next_event_kepler         // TEMPORARY
-(
-    midibyte & status, midibyte & cc,
-    midipulse & tick, midibyte & d0, midibyte & d1, bool & selected
-)
-{
-    while (m_iterator_draw != m_events.end())       /* NOT THREADSAFE!!!    */
-    {
-        midibyte d1;
-        event & drawevent = DREF(m_iterator_draw);
-        status = drawevent.get_status();
-        drawevent.get_data(cc, d1);
-        tick = drawevent.get_timestamp();
-        selected = drawevent.is_selected();
-        if (event::is_desired_cc_or_not_cc(status, cc, d0))
-        {
-            inc_draw_marker();
-            return true;        /* we have a good one; update and return */
-        }
-        else
-            inc_draw_marker();
-    }
-    return false;
-}
-
-/**
  *  Reset the caller's iterator.
  */
 
@@ -4810,8 +4788,10 @@ void
 sequence::set_recording (bool r)
 {
     automutex locker(m_mutex);
-    m_notes_on = 0;             // should this require (r != m_recording)?
-    m_recording = r;
+    if (r != m_recording) {
+        m_notes_on = 0;
+        m_recording = r;
+    }
 }
 
 /**
@@ -4828,8 +4808,11 @@ void
 sequence::set_quantized_recording (bool qr)
 {
     automutex locker(m_mutex);
-    m_notes_on = 0;             // should this require (qr != m_quantized_rec)?
-    m_quantized_rec = qr;
+    if (qr != m_quantized_rec) {
+
+        m_notes_on = 0;
+        m_quantized_rec = qr;
+    }
 }
 
 /**
@@ -4853,8 +4836,10 @@ sequence::set_input_recording (bool record_active, bool toggle)
     if (toggle)
         record_active = ! m_recording;
 
-    if (! m_thru)
+    /* HOTFIX: except if already thru and try to turn recoding (hence input) off, set input to here no matter what, because even if m_thru, input could have been replaced in another sequenence  */
+    if (record_active or !m_thru) {
         m_master_bus->set_sequence_input(record_active, this);
+    }
 
     set_recording(record_active);
 }
@@ -4871,8 +4856,6 @@ sequence::set_snap_tick (int st)
     automutex locker(m_mutex);
     m_snap_tick = st;
 }
-
-#ifdef SEQ64_STAZED_EXPAND_RECORD
 
 /**
  * \setter m_overwrite_recording
@@ -4899,8 +4882,6 @@ sequence::set_loop_reset (bool reset)
     automutex locker(m_mutex);
     m_loop_reset = reset;
 }
-
-#endif  // SEQ64_STAZED_EXPAND_RECORD
 
 /**
  * \setter m_thru
@@ -4933,8 +4914,10 @@ sequence::set_input_thru (bool thru_active, bool toggle)
     if (toggle)
         thru_active = ! m_thru;
 
-    if (! m_recording)
+    /* HOTFIX: except if already recording and try to turn thru (hence input) off, set input to here no matter what, because even in m_recording, input could have been replaced in another sequenence  */
+    if (thru_active or !m_recording) {
         m_master_bus->set_sequence_input(thru_active, this);
+    }
 
     set_thru(thru_active);
 }
@@ -4951,7 +4934,11 @@ sequence::set_input_thru (bool thru_active, bool toggle)
 void
 sequence::set_name (const std::string & name)
 {
-    m_name = name;                                      /* legacy behavior  */
+    if (name.empty())
+        m_name = sm_default_name;
+    else
+        m_name = name;                                /* legacy behavior  */
+
     set_dirty_mp();
 }
 

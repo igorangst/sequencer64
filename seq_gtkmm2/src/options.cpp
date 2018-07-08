@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2018-01-21
+ * \updates       2018-05-19
  * \license       GNU GPLv2 or above
  *
  *  Here is a list of the global variables used/stored/modified by this
@@ -33,7 +33,7 @@
  *
  *      -   c_max_sequence
  *      -   e_fruity_interaction and e_seq24_interation
- *      -   e_clock_off, e_clock_pos, e_clock_mod
+ *      -   e_clock_off, e_clock_pos, e_clock_mod, and e_clock_disabled
  *      -   e_keylabelsonsequence and e_keylabelsonsequence
  *      -   e_jack_transport, e_jack_master,
  *          e_jack_master_cond, e_jack_master_connect,
@@ -205,10 +205,8 @@ options::add_midi_clock_page ()
 
 #else
 
-        Gtk::Label * label = manage
-        (
-            new Gtk::Label(perf().master_bus().get_midi_out_bus_name(bus), 0)
-        );
+        std::string txt = perf().master_bus().get_midi_out_bus_name(bus);
+        Gtk::Label * label = manage(new Gtk::Label(txt, 0));
         hbox2->pack_start(*label, false, false);
 
 #endif  // USE_MIDI_CLOCK_CONNECT_BUTTON
@@ -239,9 +237,22 @@ options::add_midi_clock_page ()
             "Position."
         );
 
+        Gtk::RadioButton * rb_disabled = manage
+        (
+            new Gtk::RadioButton("Port Disabled")
+        );
+        add_tooltip
+        (
+            rb_disabled,
+            "This setting disables the usage of this output port, completely.  "
+            "It is needed in some cases for devices that are detected, but "
+            "cannot be used (e.g. devices locked by another application)."
+        );
+
         Gtk::RadioButton::Group group = rb_off->get_group();
         rb_on->set_group(group);
         rb_mod->set_group(group);
+        rb_disabled->set_group(group);
 
         /*
          * Wire in some clock callbacks.
@@ -259,9 +270,18 @@ options::add_midi_clock_page ()
         (
             sigc::bind(mem_fun(*this, &options::clock_callback_mod), bus, rb_mod)
         );
+        rb_disabled->signal_toggled().connect
+        (
+            sigc::bind
+            (
+                mem_fun(*this, &options::clock_callback_disable), bus,
+                rb_disabled
+            )
+        );
         hbox2->pack_end(*rb_mod, false, false);
         hbox2->pack_end(*rb_on, false, false);
         hbox2->pack_end(*rb_off, false, false);
+        hbox2->pack_end(*rb_disabled, false, false);
         inputbox->pack_start(*hbox2, false, false);
         switch (perf().master_bus().get_clock(bus))
         {
@@ -275,6 +295,10 @@ options::add_midi_clock_page ()
 
         case e_clock_mod:
             rb_mod->set_active(1);
+            break;
+
+        case e_clock_disabled:
+            rb_disabled->set_active(1);
             break;
         }
     }
@@ -321,7 +345,12 @@ options::add_midi_clock_page ()
     (
         entry,
         "Sets the number of the tempo track, and it is saved to the 'rc' file. "
-        "A very interactive control; play with it to understand how it works."
+
+        /*
+         * Too much:
+         *
+         * "A very interactive control; play with it to understand how it works."
+         */
     );
     hboxmeta->pack_start(*entry, Gtk::PACK_SHRINK, 4);
     hboxmeta->pack_start(*label, Gtk::PACK_SHRINK, 4);
@@ -340,9 +369,9 @@ options::add_midi_clock_page ()
     (
         log_to_song,
         "Saves the current tempo track number as a song parameter, saved "
-        "to the MIDI file, as "
-        "opposed to a global Sequencer64 value. However, remember that "
-        "the given value will be save to the 'rc' file when exiting."
+        "to the MIDI file, as opposed to a global Sequencer64 value. "
+        "However, remember that the value will be saved to the 'rc' "
+        "file when exiting."
     );
 }
 
@@ -1280,7 +1309,9 @@ options::add_jack_sync_page ()
 }
 
 /**
- *  Clock-off callback function.
+ *  Clock-off callback function.  This and the other callback functions for
+ *  clocking are actually called twice; the first time, the button is not
+ *  active, and the second time, it is.  Weird.
  *
  * \param bus
  *      The MIDI buss number to be affected.
@@ -1324,7 +1355,7 @@ options::clock_callback_on (int bus, Gtk::RadioButton * button)
  *
  * \param button
  *      The status of the radio-button.  If active, then the master buss
- *      set_clock() function is called to turn turn on e_clock_mod.
+ *      set_clock() function is called to turn on e_clock_mod.
  */
 
 void
@@ -1332,6 +1363,24 @@ options::clock_callback_mod (int bus, Gtk::RadioButton * button)
 {
     if (button->get_active())
         perf().set_clock_bus(bus, e_clock_mod);
+}
+
+/**
+ *  Clock-output-disable callback function.
+ *
+ * \param bus
+ *      The MIDI buss number to be affected.
+ *
+ * \param button
+ *      The status of the radio-button.  If active, then the master buss
+ *      set_clock() function is called to turn on e_clock_mod.
+ */
+
+void
+options::clock_callback_disable (int bus, Gtk::RadioButton * button)
+{
+    if (button->get_active())
+        perf().set_clock_bus(bus, e_clock_disabled);
 }
 
 /**

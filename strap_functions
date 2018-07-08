@@ -8,7 +8,7 @@
 # \library    	Any project
 # \author     	Chris Ahlstrom
 # \date       	2015-07-24
-# \update     	2018-02-18
+# \update     	2018-05-10
 # \version    	$Revision$
 # \license    	$XPC_SUITE_GPL_LICENSE$
 #
@@ -251,6 +251,8 @@ run_cmd()
 #     Cleans out the whole project tree of garbage.  Currently unused.  See the
 #     usage of DOCLEAN and DOFULLCLEAN in the bootstrap script.
 #
+#     MIGHT NOT BE CALLED!
+#
 #------------------------------------------------------------------------------
 
 function clean_tree()
@@ -362,7 +364,8 @@ function clean_tempfiles()
    find . -name "*.t" -exec rm -f '{}' \; 2> /dev/null
    find . -name "*.hexer" -exec rm -f '{}' \; 2> /dev/null
    find . -name "*~" -exec rm -f '{}' \; 2> /dev/null
-   clean_by_ext "bak t tmp log"
+#  clean_by_ext "bak t tmp log"
+   clean_by_ext "bak t tmp"
    find . -name "tmwrk*" -exec rm -rf '{}' \; 2> /dev/null
    find . -name "tmpcvs*" -exec rm -rf '{}' \; 2> /dev/null
    find . -name "tmp" -exec rm -rf '{}' \; 2> /dev/null
@@ -458,6 +461,22 @@ function clean_debfiles()
    #  done
 
    debian/rules clean
+
+   # These come from using the control-split file on a trial basis.
+
+	rm -f debian/libseq64-dev.substvars
+	rm -rf debian/libseq64-dev/
+	rm -f debian/libseq64.substvars
+	rm -rf debian/libseq64/
+	rm -f debian/seq-gtkmm2-dev.substvars
+	rm -rf debian/seq-gtkmm2-dev/
+	rm -f debian/seq-gtkmm2.substvars
+	rm -rf debian/seq-gtkmm2/
+	rm -f debian/seq-rtmidi-dev.substvars
+	rm -rf debian/seq-rtmidi-dev/
+	rm -f debian/seq-rtmidi.substvars
+	rm -rf debian/seq-rtmidi/
+
 }
 
 #******************************************************************************
@@ -487,12 +506,19 @@ function clean_doxfiles()
 #******************************************************************************
 #  clean_qt5files
 #------------------------------------------------------------------------------
+#
+#  We no longer remove any "qt" directories.  Not sure why we were doing this,
+#  since we don't create such a directory on the fly.
+#
+#------------------------------------------------------------------------------
 
 function clean_qt5files()
 {
    echo "* Cleaning Qt 5 build artifacts..."
-   find . -name "qt" -exec rm -rf '{}' \; 2> /dev/null
+   # find . -name "qt" -exec rm -rf '{}' \; 2> /dev/null
    find . -name "*.moc.cpp" -exec rm -f '{}' \; 2> /dev/null
+   find . -name "*.ui.h" -exec rm -f '{}' \; 2> /dev/null
+   find . -name "ui_*.h" -exec rm -f '{}' \; 2> /dev/null
 }
 
 #******************************************************************************

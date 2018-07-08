@@ -28,7 +28,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2018-03-05
+ * \updates       2018-05-12
  * \license       GNU GPLv2 or above
  *
  *  This class still has way too many members, even with the JACK and
@@ -127,8 +127,8 @@
  *  Show Sequence Number settings change.
  */
 
-#define PERFORM_KEY_LABELS_ON_SEQUENCE  9998
-#define PERFORM_NUM_LABELS_ON_SEQUENCE  9999
+#define PERFORM_KEY_LABELS_ON_SEQUENCE  254     // 9998
+#define PERFORM_NUM_LABELS_ON_SEQUENCE  255     // 9999
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -175,7 +175,7 @@ namespace seq64
  *      "replaced".
  */
 
-const int c_status_replace  = 0x01;
+const int c_status_replace = 0x01;
 
 /**
  *  This value signals the "snapshot" functionality.  By default,
@@ -204,9 +204,7 @@ const int c_status_snapshot = 0x02;
  *  regular queue key is pressed and released.
  */
 
-const int c_status_queue    = 0x04;
-
-#ifdef SEQ64_SONG_RECORDING
+const int c_status_queue = 0x04;
 
 /**
  *  This value signals the Kepler34 "one-shot" functionality.  If this bit
@@ -214,9 +212,7 @@ const int c_status_queue    = 0x04;
  *  sequence::toggle_oneshot() on the given sequence number.
  */
 
-const int c_status_oneshot  = 0x08;
-
-#endif  // SEQ64_SONG_RECORDING
+const int c_status_oneshot = 0x08;
 
 /**
  *      Provides for notification of events.  Provide a response to a
@@ -293,6 +289,42 @@ class perform
 
 public:
 
+    /**
+     *  In many cases, when we check a key action that perform wil do, it is
+     *  sufficient to return a boolean.  But, in some cases, we need to indicate
+     *  what was changed (e.g. via a keystroke).  This enumeration provides
+     *  return values that a (GUI) caller can use to decided which values to get
+     *  and then change the user-interface to indicate the new value.
+     *
+     *  See the keyboard_group_action() function and the "[keyboard-control]"
+     *  and "[keyboard-group]" configuration sections of the "rc" file.
+     */
+
+    enum action_t
+    {
+        ACTION_NONE,            /**< The keystroke was not handled by perform.  */
+        ACTION_SEQ_TOGGLE,      /**< For perform::sequence_playing_toggle().    */
+        ACTION_GROUP_MUTE,      /**< See mainwnd::on_key_press_event().  ???    */
+        ACTION_BPM,             /**< Applies to any BPM change, including tap.  */
+        ACTION_SCREENSET,       /**< The keystroke altered the active set.      */
+        ACTION_GROUP_LEARN,     /**< See mainwnd::on_key_press_event().  ???    */
+        ACTION_C_STATUS,        /**< For replace, queue, snapshot, oneshot.     */
+
+        // Might not be useful:
+        //
+        // ACTION_PLAYBACK
+        // ACTION_SONG_MODE,
+        // ACTION_MENU_MODE,
+        // ACTION_SONG_RECORD,
+        // ACTION_ONESHOT_QUEUE,
+        // ACTION_SONG_EDIT,
+        // ACTION_EVENT_EDIT,
+        // ACTION_SLASH_SHIFT,
+        // ACTION_EXTENDED,
+    };
+
+public:
+
 #ifdef SEQ64_SONG_BOX_SELECT
 
     /**
@@ -311,7 +343,9 @@ public:
      *  placeholders or parameters, if desired.
      */
 
+#if __cplusplus >= 201103L                  /* C++11                        */
     typedef std::function<void(int)> SeqOperation;
+#endif
 
 #endif
 
@@ -348,23 +382,6 @@ public:
         FF_RW_NONE      =  0,
         FF_RW_FORWARD   =  1
     };
-
-#ifdef USE_CONSOLIDATED_PLAYBACK
-
-    /**
-     *  We're experimenting with consolidating all the various playback
-     *  functions that have gotten scattered throughout the code.  Might
-     *  fold the ff_rw_button_t in at some point.
-     */
-
-    enum playback_action_t
-    {
-        PLAYBACK_STOP,
-        PLAYBACK_PAUSE,
-        PLAYBACK_START
-    };
-
-#endif  // USE_CONSOLIDATED_PLAYBACK
 
 private:
 
@@ -979,19 +996,6 @@ private:
      */
 
     int m_playscreen_offset;
-
-#ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
-
-    /**
-     *  New.  Attempting to provide a feature where moving to another
-     *  screenset automatically cues the current screenset for turning off,
-     *  and the new screenset for turning on.  EXPERIMENTAL.  Will be a menu
-     *  option once it works.
-     */
-
-    bool m_auto_screenset_queue;
-
-#endif
 
     /**
      *  A replacement for the c_max_sets constant.  Again, currently set to
@@ -1743,6 +1747,7 @@ public:
     void set_recording (bool rec_active, int seq, bool toggle = false);
     void set_quantized_recording (bool rec_active, sequence * s);
     void set_quantized_recording (bool rec_active, int seq, bool toggle = false);
+    void set_overwrite_recording (bool overwrite_active, int seq, bool toggle = false);
     void set_thru (bool rec_active, bool thru_active, sequence * s);
     void set_thru (bool thru_active, int seq, bool toggle = false);
     bool selected_trigger
@@ -1753,7 +1758,9 @@ public:
 
 #ifdef SEQ64_SONG_BOX_SELECT
 
+#if __cplusplus >= 201103L                  /* C++11                        */
     bool selection_operation (SeqOperation func);
+#endif
     void box_insert (int dropseq, midipulse droptick);
     void box_delete (int dropseq, midipulse droptick);
     void box_toggle_sequence (int dropseq, midipulse droptick);
@@ -1783,22 +1790,12 @@ public:
 
     bool clear_all ();
     void launch (int ppqn);
+    void finish ();
     void new_sequence (int seq);                    /* seqmenu & mainwid    */
     void add_sequence (sequence * seq, int perf);   /* midifile             */
     void delete_sequence (int seq);                 /* seqmenu & mainwid    */
     bool is_sequence_in_edit (int seq);
     void print_busses () const;
-
-    /**
-     *  The rough opposite of launch(); it doesn't stop the threads.  A minor
-     *  simplification for the main() routine, hides the JACK support macro.
-     *  We might need to add code to stop any ongoing outputing.
-     */
-
-    void finish ()
-    {
-        (void) deinit_jack_transport();
-    }
 
     /**
      * \getter m_tick
@@ -1937,6 +1934,9 @@ public:
     /**
      * \getter m_master_bus.get_beats_per_minute
      *      Retrieves the BPM setting of the master MIDI buss.
+     *
+     *  This result should be the same as the value of the m_bpm member.
+     *  This function returns that value in a roundabout way.
      *
      * \return
      *      Returns the value of beats/minute from the master buss.
@@ -2304,34 +2304,24 @@ public:
         return is_mseq_valid(seq) ? m_seqs[seq] : nullptr ;
     }
 
-#ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
-
-    void set_auto_screenset (bool flag);
-    void swap_screenset_queues (int ss0, int ss1);
-
-    /**
-     * \getter m_auto_screenset_queue
-     */
-
-    bool auto_screenset () const
-    {
-        return m_auto_screenset_queue;
-    }
-
-#endif  // SEQ64_USE_AUTO_SCREENSET_QUEUE
-
-    void sequence_key (int seq);                        // encapsulation
+    void sequence_key (int seq);                            // encapsulation
     std::string sequence_label (const sequence & seq);
-    std::string sequence_label (int seqnumb);           // for qperfnames
-    void set_input_bus (int bus, bool input_active);    // used in options
-    void set_clock_bus (int bus, clock_e clocktype);    // used in options
+    std::string sequence_label (int seqnumb);               // for qperfnames
+    std::string sequence_title (const sequence & seq);
+    void set_input_bus (bussbyte bus, bool input_active);   // used in options
+    void set_clock_bus (bussbyte bus, clock_e clocktype);   // used in options
+
     bool mainwnd_key_event (const keystroke & k);
+
+    bool keyboard_control_press (unsigned key);
+    bool keyboard_group_c_status_press (unsigned key);
+    bool keyboard_group_c_status_release (unsigned key);
+    bool keyboard_group_press (unsigned key);
+    bool keyboard_group_release (unsigned key);
+    action_t keyboard_group_action (unsigned key);
+
     bool perfroll_key_event (const keystroke & k, int drop_sequence);
     bool playback_key_event (const keystroke & k, bool songmode = false);
-
-#ifdef USE_CONSOLIDATED_PLAYBACK
-    bool playback_action (playback_action_t p, bool songmode = false);
-#endif
 
     /*
      * More trigger functions.
@@ -2670,6 +2660,15 @@ public:         // GUI-support functions
         m_playback_mode = playbackmode;
     }
 
+    /**
+     * \getter m_mode_group_learn
+     */
+
+    bool is_group_learning ()
+    {
+        return m_mode_group_learn;
+    }
+
     void set_beats_per_minute (midibpm bpm);    /* more than just a setter  */
     void panic ();                              /* from kepler43        */
 
@@ -2753,17 +2752,8 @@ private:
     void unset_mode_group_learn ();
     bool load_mute_group (int gmute, int gm [c_max_groups]);
     bool save_mute_group (int gmute, int gm [c_max_groups]) const;
-
-    /**
-     * \getter m_mode_group_learn
-     */
-
-    bool is_group_learning ()
-    {
-        return m_mode_group_learn;
-    }
-
     void set_and_copy_mute_group (int group);
+
     bool activate ();
     void position_jack (bool state, midipulse tick = 0);
     void off_sequences ();
@@ -2943,6 +2933,19 @@ private:
 #endif
 
     /**
+     *  Pre-allocates the desired number of clocks.  This function and calls
+     *  to set_clock() are a more fool-proof option for reading the clocks
+     *  from the "rc" file.  Might eventually do this for inputs as well.
+     *  LATER.
+     */
+
+    void preallocate_clocks (int busscount)
+    {
+        for (int b = 0; b < busscount; ++b)
+            add_clock(e_clock_off);
+    }
+
+    /**
      *  Saves the clock settings read from the "rc" file so that they can be
      *  passed to the mastermidibus after it is created.
      *
@@ -2960,10 +2963,31 @@ private:
      *  Mostly meant for use by the Options / MIDI Input tab.
      */
 
-    void set_clock (int bus, clock_e clocktype)
+    void set_clock (bussbyte bus, clock_e clocktype)
     {
         if (bus < int(m_master_clocks.size()))
             m_master_clocks[bus] = clocktype;
+    }
+
+    /**
+     *  Gets a single clock item, if in the currently existing range.
+     *  Meant for use by the optionsfile::write() function.
+
+    clock_e get_clock (bussbyte bus) const
+    {
+        return bus < bussbyte(m_master_clocks.size()) ?
+            m_master_clocks[bus] : e_clock_off ;
+    }
+     * STILL THINKING ABOUT THIS.
+     */
+
+    /**
+     * \getter m_master_bus->get_clock(bus);
+     */
+
+    clock_e get_clock (bussbyte bus) const
+    {
+        return m_master_bus->get_clock(bus);
     }
 
     /**
@@ -2984,27 +3008,42 @@ private:
      *  Mostly meant for use by the Options / MIDI Input tab.
      */
 
-    void set_input (int bus, bool inputing)
+    void set_input (bussbyte bus, bool inputing)
     {
-        if (bus < int(m_master_inputs.size()))
+        if (bus < bussbyte(m_master_inputs.size()))
             m_master_inputs[bus] = inputing;
     }
 
     /**
-     * \getter m_master_bus->get_input(bus)
+     * \getter m_master_inputs[bus]
+     *
+     *  Changed from:
+     *
+     *      return not_nullptr(m_master_bus) ?
+     *          m_master_bus->get_input(bus) : false ;
+
+    bool get_input (bussbyte bus) const
+    {
+        return bus < bussbyte(m_master_inputs.size()) ?
+            m_master_inputs[bus] : false ;
+    }
+     * STILL THINKING ABOUT THIS.
      */
 
-    bool get_input (int bus)
+    /**
+     * \getter m_master_bus->get_input(bus);
+     */
+
+    bool get_input (bussbyte bus) const
     {
-        return not_nullptr(m_master_bus) ?
-            m_master_bus->get_input(bus) : false ;
+        return m_master_bus->get_input(bus);
     }
 
     /**
      * \getter m_master_bus->is_input_system_port(bus)
      */
 
-    bool is_input_system_port (int bus)
+    bool is_input_system_port (bussbyte bus)
     {
         return not_nullptr(m_master_bus) ?
             m_master_bus->is_input_system_port(bus) : false ;

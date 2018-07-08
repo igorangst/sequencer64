@@ -20,9 +20,17 @@
  */
 
 /**
- * \file        midiwin32.h
+ * \file        pmwinmm.h
  *
- * -- system-specific definitions
+ *      Windows multi-media API setup and teardown functions.
+ *
+ * \library     sequencer64 application
+ * \author      PortMIDI team; modifications by Chris Ahlstrom
+ * \date        2017-08-21
+ * \updates     2018-04-10
+ * \license     GNU GPLv2 or above
+ *
+ *  Provides system-specific definitions for Windows.
  */
 
 #ifdef __cplusplus
@@ -30,11 +38,18 @@ extern "C"
 {
 #endif
 
-extern void pm_winmm_init(void);
-extern void pm_winmm_term(void);
+extern void pm_winmm_init (void);
+extern void pm_winmm_term (void);
 
 #ifdef __cplusplus
 }           // extern "C"
 #endif
 
-#endif  // SEQ64_PMWINMM_H
+#endif      // SEQ64_PMWINMM_H
+
+/*
+ * pmwinmm.h
+ *
+ * vim: sw=4 ts=4 wm=4 et ft=c
+ */
+

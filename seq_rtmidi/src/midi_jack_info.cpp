@@ -6,7 +6,7 @@
  * \library       sequencer64 application
  * \author        Chris Ahlstrom
  * \date          2017-01-01
- * \updates       2018-01-26
+ * \updates       2018-06-02
  * \license       See the rtexmidi.lic file.  Too big.
  *
  *  This class is meant to collect a whole bunch of JACK information
@@ -33,6 +33,7 @@
  */
 
 #include "calculations.hpp"             /* extract_port_names()             */
+#include "easy_macros.hpp"              /* C++ version of easy macros       */
 #include "event.hpp"                    /* seq64::event and other tokens    */
 #include "jack_assistant.hpp"           /* seq64::create_jack_client()      */
 #include "midi_jack.hpp"                /* seq64::midi_jack_info            */
@@ -531,14 +532,13 @@ midi_jack_info::api_port_start
 }
 
 /**
- *  MUCH TO DO!
+ *  We might be able to eliminate this function.
  */
-
 int
 midi_jack_info::api_poll_for_midi ()
 {
     millisleep(1);
-    return 0;       // TODO TODO TODO
+    return 0;
 }
 
 /**

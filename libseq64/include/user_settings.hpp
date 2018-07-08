@@ -28,7 +28,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-09-22
- * \updates       2018-02-06
+ * \updates       2018-05-27
  * \license       GNU GPLv2 or above
  *
  *  This module defines the following categories of "global" variables that
@@ -250,9 +250,9 @@ private:
     int m_max_sets;
 
     /**
-     *  EXPERIMENTAL.
      *  Provide a scale factor to increase the size of the main window
      *  and its internals.  Should be limited from 1.0 to 3.0, probably.
+     *  Right now we allow 0.5 to 3.0.
      */
 
     float m_window_scale;
@@ -423,8 +423,6 @@ private:
 
     bool m_use_more_icons;
 
-#if defined SEQ64_MULTI_MAINWID
-
     /**
      *  New section [user-main-window]
      *
@@ -464,8 +462,6 @@ private:
      */
 
     bool m_mainwid_block_independent;
-
-#endif  // SEQ64_MULTI_MAINWID
 
     /**
      *  Constants for the mainwid class.  These items are not read from the
@@ -511,7 +507,7 @@ private:
     int m_seqchars_y;   /* c_seqchars_y =  5    */
 
     /*
-     *                  [user-midi-settings]
+     *  [user-midi-settings]
      */
 
     /**
@@ -713,20 +709,36 @@ private:
     int m_seqarea_seq_y;
 
     /**
-     * The width of the main pattern/sequence grid, in pixels.  Affected
-     * by the m_mainwid_border and m_mainwid_spacing values.  Replaces
-     * c_mainwid_x.
+     *  The width of the main pattern/sequence grid, in pixels.  Affected by
+     *  the m_mainwid_border and m_mainwid_spacing values, as well a
+     *  m_window_scale.  Replaces c_mainwid_x.
      */
 
     int m_mainwid_x;
 
-    /*
-     * The height of the main pattern/sequence grid, in pixels.  Affected by
-     * the m_mainwid_border and m_control_height values. Replaces
-     * c_mainwid_y.
+    /**
+     *  The height of the main pattern/sequence grid, in pixels.  Affected by
+     *  the m_mainwid_border and m_control_height values, as well a
+     *  m_window_scale. Replaces c_mainwid_y.
      */
 
     int m_mainwid_y;
+
+    /**
+     *  The hardwired base width of the whole main window.  If m_window_scale
+     *  is significantly different from 1.0, then the accessor will scale this
+     *  value.
+     */
+
+    int m_mainwnd_x;
+
+    /**
+     *  The hardwired base height of the whole main window.  Llike
+     *  m_mainwnd_x, this value is scaled by the accessor, however, only if
+     *  less than 1.0; otherwise, the top buttons expand way too much.
+     */
+
+    int m_mainwnd_y;
 
     /**
      *  Provides a temporary variable that can be set from the command line to
@@ -777,7 +789,7 @@ private:
     const int mc_baseline_ppqn;
 
     /*
-     *                  [user-options]
+     *  [user-options]
      */
 
     /**
@@ -789,6 +801,13 @@ private:
      */
 
     bool m_user_option_daemonize;
+
+    /**
+     *  If true, this value means that "-o log=..." (where the "..." is an
+     *  optional filename) was specified on the command line.
+     */
+
+    bool m_user_use_logfile;
 
     /**
      *  If not empty, this file will be set up as the destination for all
@@ -805,7 +824,7 @@ private:
     std::string m_user_option_logfile;
 
     /*
-     *                  [user-work-arounds]
+     *  [user-work-arounds]
      */
 
     /**
@@ -824,6 +843,18 @@ private:
      */
 
     bool m_work_around_transpose_image;
+
+    /*
+     *  [user-ui-tweaks]
+     */
+
+    /**
+     *  Defines the key height in the Kepler34 sequence editor.  Defaults to
+     *  12 pixels (8 is actually a bit nicer IMHO).  Will eventually affect
+     *  the Gtkmm-2.4 user-interface as well.
+     */
+
+    int m_user_ui_key_height;
 
 public:
 
@@ -1004,12 +1035,21 @@ public:
     }
 
     /**
+     *  Returns true if we're reducing the size of the main window.
+     */
+
+    bool window_scaled_down () const
+    {
+        return m_window_scale < 1.0f;
+    }
+
+    /**
      * \getter m_window_scale
      */
 
     int scale_size (int value) const
     {
-        return int(m_window_scale * value);
+        return int(m_window_scale * value + 0.5);
     }
 
     /**
@@ -1250,6 +1290,9 @@ public:
         return scale_size(m_mainwid_y);
     }
 
+    int mainwnd_x () const;
+    int mainwnd_y () const;
+
     /**
      *  Returns the mainwid border thickness plus a fudge constant.
      */
@@ -1447,8 +1490,6 @@ public:
         return m_use_more_icons;
     }
 
-#if defined SEQ64_MULTI_MAINWID
-
     /**
      * \getter m_mainwid_block_rows
      */
@@ -1475,8 +1516,6 @@ public:
     {
         return m_mainwid_block_independent;
     }
-
-#endif  // SEQ64_MULTI_MAINWID
 
     /**
      * \getter m_save_user_config
@@ -1682,6 +1721,15 @@ public:
         return m_user_option_daemonize;
     }
 
+    /**
+     * \getter m_user_use_logfile
+     */
+
+    bool option_use_logfile () const
+    {
+        return m_user_use_logfile;
+    }
+
     std::string option_logfile () const;
 
     /**
@@ -1700,6 +1748,15 @@ public:
     bool work_around_transpose_image () const
     {
         return m_work_around_transpose_image;
+    }
+
+    /**
+     * \getter m_user_ui_key_height
+     */
+
+    int key_height () const
+    {
+        return m_user_ui_key_height;
     }
 
 public:         // used in main application module and the userfile class
@@ -1771,8 +1828,6 @@ public:         // used in main application module and the userfile class
         m_use_more_icons = flag;
     }
 
-#if defined SEQ64_MULTI_MAINWID
-
     void block_rows (int count);
     void block_columns (int count);
 
@@ -1785,8 +1840,6 @@ public:         // used in main application module and the userfile class
         m_mainwid_block_independent = flag;
     }
 
-#endif  // SEQ64_MULTI_MAINWID
-
     /**
      * \setter m_user_option_daemonize
      */
@@ -1794,6 +1847,15 @@ public:         // used in main application module and the userfile class
     void option_daemonize (bool flag)
     {
         m_user_option_daemonize = flag;
+    }
+
+    /**
+     * \setter m_user_use_logfile
+     */
+
+    void option_use_logfile (bool flag)
+    {
+        m_user_use_logfile = flag;
     }
 
     /**
@@ -1821,6 +1883,17 @@ public:         // used in main application module and the userfile class
     void work_around_transpose_image (bool flag)
     {
         m_work_around_transpose_image = flag;
+    }
+
+    /**
+     * \setter m_user_ui_key_height
+     *      Do we want to add scaling to this at this time?  m_window_scale
+     */
+
+    void key_height (int h)
+    {
+        if (h >= 7 && h <= 24)
+            m_user_ui_key_height = h;
     }
 
     void midi_ppqn (int ppqn);

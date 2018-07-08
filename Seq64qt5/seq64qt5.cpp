@@ -25,7 +25,7 @@
  * \library       seq64qt5 application
  * \author        Chris Ahlstrom
  * \date          2017-09-05
- * \updates       2018-03-17
+ * \updates       2018-05-05
  * \license       GNU GPLv2 or above
  *
  *  This is an attempt to change from the hoary old (or, as H.P. Lovecraft
@@ -36,9 +36,14 @@
 #include <QApplication>
 
 #include "cmdlineopts.hpp"              /* command-line functions           */
+#include "daemonize.hpp"                /* seqg4::reroute_stdio()           */
 #include "file_functions.hpp"           /* seq64::file_accessible()         */
 #include "gui_assistant_qt5.hpp"        /* seq64::gui_assistant_qt5         */
+
+#ifdef PLATFORM_LINUX
 #include "lash.hpp"                     /* seq64::lash_driver functions     */
+#endif
+
 #include "perform.hpp"                  /* seq64::perform                   */
 #include "qsmainwnd.hpp"                /* the main window of seq64qt5      */
 #include "settings.hpp"                 /* seq64::usr() and seq64::rc()     */
@@ -76,8 +81,7 @@ main (int argc, char * argv [])
     int exit_status = EXIT_SUCCESS;         /* EXIT_FAILURE                 */
     seq64::rc().set_defaults();             /* start out with normal values */
     seq64::usr().set_defaults();            /* start out with normal values */
-    seq64::rc().set_config_files("qseq64"); /* use a different config file  */
-    (void) seq64::parse_log_option(argc, argv);    /* -o log=file.ext early */
+    (void) seq64::parse_log_option(argc, argv);   /* -o log=file.ext early  */
 
     /**
      * Set up objects that are specific to the GUI.  Pass them to the
@@ -117,11 +121,16 @@ main (int argc, char * argv [])
              * take precedence.  The "log" option is processed early in the
              * startup sequence.  These same settings are made in the
              * cmdlineopts module.
+             *
+             * Now handled via optind incrementing:     ++optionindex;
              */
 
-            ++optionindex;
             p.seqs_in_set(seq64::usr().seqs_in_set());
             p.max_sets(seq64::usr().max_sets());
+
+            std::string logfile = seq64::usr().option_logfile();
+            if (seq64::usr().option_use_logfile() && ! logfile.empty())
+                (void) seq64::reroute_stdio(logfile);
         }
 
         /*
@@ -168,7 +177,18 @@ main (int argc, char * argv [])
          * #100, where ladish doesn't see seq64's ports in time.
          *
          *  p.launch(seq64::usr().midi_ppqn());
+         *
+         * We also check for any "fatal" PortMidi errors, so we can display
+         * them.  But we still want to keep going, in order to at least
+         * generate the log-files and configuration files to
+         * C:/Users/me/AppData/Local/sequencer64 or ~/.config/sequencer64.
          */
+
+        if (Pm_error_present())
+        {
+            ok = false;
+            seq24_window.show_message_box(std::string(Pm_hosterror_message()));
+        }
 
         if (ok)
         {
@@ -178,32 +198,40 @@ main (int argc, char * argv [])
                 if (seq64::file_accessible(midifilename))
                     seq24_window.open_file(midifilename);
                 else
-                    printf("? MIDI file not found: %s\n", midifilename.c_str());
+                {
+                    char temp[256];
+                    (void) snprintf
+                    (
+                        temp, sizeof temp,
+                        "? MIDI file not found: %s\n", midifilename.c_str()
+                    );
+                    printf(temp);
+                    seq24_window.show_message_box(std::string(temp));
+                }
             }
+        }
 
+#ifdef PLATFORM_LINUX
+        if (ok)
+        {
             if (seq64::rc().lash_support())
                 seq64::create_lash_driver(p, argc, argv);
+        }
+#endif
 
-            exit_status = a.exec();                 /* run main window loop */
-            p.finish();                             /* tear down performer  */
-            if (seq64::rc().auto_option_save())
-            {
-                if (ok)                             /* don't write bad data */
-                    ok = seq64::write_options_files(p);
-            }
-            else
-                printf("[auto-option-save off, not saving config files]\n");
-
-            seq64::delete_lash_driver();            /* deleted only exists  */
+        exit_status = a.exec();                 /* run main window loop */
+        p.finish();                             /* tear down performer  */
+        if (seq64::rc().auto_option_save())
+        {
+            (void) seq64::write_options_files(p);
         }
         else
-        {
-            /*
-             * TODO
-             *
-            seq24_window.rc_error_dialog(errmessage);
-             */
-        }
+            printf("[auto-option-save off, not saving config files]\n");
+
+#ifdef PLATFORM_LINUX
+    if (ok)
+        seq64::delete_lash_driver();            /* deleted only exists  */
+#endif
     }
     return exit_status;
 }

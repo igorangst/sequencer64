@@ -1,6 +1,6 @@
-INSTALL for Sequencer64 v. 0.94.6 and above
+INSTALL for Sequencer64 v. 0.95.0 and above
 Chris Ahlstrom
-2015-09-10 to 2018-03-17
+2015-09-10 to 2018-06-02
 
 The current packaging for Sequencer64 requires building the code.  The
 bootstrapping setup is primarily aimed at developers.  Starting with version
@@ -16,32 +16,50 @@ bootstrapping setup is primarily aimed at developers.  Starting with version
         builds a test application, midiclocker64.
     -   sequencer64. ALSA with JACK transport; the original version.
     -   seq64portmidi. PortMIDI implementation; has issues, a less effective
-        option for Linux; might still be used for the upcoming Windows
-        implementation.
-    -   qseq64.  The seq64 (rtmidi) version of the application, with a Qt5
-        user interface.  Still a LONG WAY from usability.
+        option for Linux.
+    -   qpseq64.  The PortMidi version of the application, with a Qt5
+        user interface based on Kepler34.  Useable, but still lacks many of
+        the user-interface elements of the Gtkmm 2.4 application.  Built via
+        qmake and suitable for loading in QtCreator installed with its mingw32
+        tools.  If you want to build it yourself, be sure to specify the Mingw
+        library, tools, and mkspec in Qt Creator.  This version supports both
+        Linux and (wait for it...) Windows.
+
+    We provide a portable Windows Zip package and a Windows installer in
+    the "sequencer64-packages" project in GitHub.
+
+Below are sections for various ways of installing this project by building
+from source code:
+
+    -   Quick Install
+    -   Advanced Steps
+    -   Qmake-based Install
 
 Quick Install:
 
-    The quick install is meant for "newbies" or for those who do no want to
-    install a lot of extra developer packages.  Also, this step builds the
-    default version of Sequencer64, "seq64".
+    The quick install is meant for for those who do no want to install a lot
+    of extra developer packages, and want to use the standard "./configure ;
+    make ; make install" mantra.  These steps build the default version of
+    Sequencer64, "seq64".
 
-    This project finally provides a "configure" script for the normal
-    build process.  However, as usual, you will need to make sure various
-    "dev" dependencies are installed.  See the DEPENDENCIES section.  In
-    addition, there may be a need to do the following commands, which require
-    automake and libtool to be installed:
+    The "configure" script for the normal build process means you will need to
+    make sure various "dev" dependencies are installed.  See the DEPENDENCIES
+    section.  In addition, there may be a need to do the following commands,
+    which require automake and libtool to be installed:
 
         $ libtoolize
         $ automake --add-missing
 
-    We hope to eliminate the steps above at some point.  Next:
+    Grab a Sequencer64 tarball e.g. sequencer64-master-rtmidi-0.94.6-1.tar.xz.
+    Untar it
 
-        $ ./configure [options] ; make ; sudo make install
+        $ ./configure --enable-release --enable-rtmidi
+        $ make
+        $ sudo make install
 
-    This build results in the first executable described above, seq64,
-    the same setup created by "./bootstrap -er -rm".
+    The configure "--enable-release --enable-rtmidi" options are optional,
+    since they are the defaults.  This build results in the first executable
+    described above, seq64, the same setup created by "./bootstrap -er -rm".
 
     If any issues occur, please write me through GitHub, or directly at my
     Gmail address.
@@ -61,12 +79,13 @@ Advanced Steps:
        show other branches not yet deleted.  See GitHub.
 
    2.  The first thing to do is decide what version of Sequencer64 you want to
-       build.  There are now 4 versions:
+       build.  There are now 5 versions:
 
        1.   Seq64rtmidi/seq64:           ./bootstrap [ -er | -ed] -rm
        2.   Seq64cli/seq64cli:           ./bootstrap -er -cli
        3.   Sequencer64/sequencer64:     ./bootstrap -er -am
        4.   Seq64portmidi/seq64portmidi: ./bootstrap -er -pm (fewer features)
+       5.   Seq64qt5/qseq64:             ./bootstrap -er -qt (in progress)
    
        From the top project directory, run one of the commands above (they
        auto-configure) or run the following commands, which set up a release
@@ -132,6 +151,58 @@ Advanced Steps:
 
        It contains a prebuilt PDF version of the manual, as well as the
        LaTeX files needed to rebuild it.
+
+   7.  If you want to generate your own source/configure tarball for
+       distributing Sequencer64, use the pack script:
+
+       ./pack --release rtmidi 0.94.6
+
+       where rtmidi is the intended default build, and 0.94.6 is the version
+       of the project.  The branch is included in the resulting tarball name;
+       the usual branch would be "master".
+
+Qmake-based Install:
+
+    A build based on Qt Creator and Qmake is available.  It has the sole
+    purpose of making it easy to build the project on Windows, though we
+    created this build on Linux first to work out the numerous "gotchas" with
+    Qt Creator, QMake, and the internal Sequencer64 "architecture".
+    
+    The Qmake-based build is designed *only* to use the PortMidi
+    library and the new Kepler34-based Qt 5 user interface.  This
+    user interface is currently less functional than the Gtkmm 2.4 user
+    interface, but the Sequencer64 libraries are used internally.
+
+    The first way to use this build is to run qtcreator and load the
+    qplseq64.pro file.  This method can be used if you do not care for the
+    command-line.  However, if the installer for Qt Creator did not
+    set up the default "kit" properly, you must create a good kit manually.
+    If the kit is set up properly, the "qplseq64.pro" entry in the left
+    project panel will show the other "pro" files as subprojects.  Note that
+    a successful build will put the generated files in a "shadow" directory
+    parallel with the "sequencer64" directory, such as:
+    
+        build-qplseq64-Desktop_Qt_5_10_1_MinGW_32bit-Debug
+    
+    Do not forget to "Configure Project" before trying to build it!
+
+    The second way to use this build is to just use qmake to do a "shadow
+    build".  Assuming you are in the "sequencer64" directory:
+
+        $ cd ..
+        $ mkdir debug-build
+        $ cd debug-build
+        $ qmake -makefile -recursive "CONFIG += debug" ../sequencer64/qplseq64.pro
+        $ make
+        $ sudo make install (does not work yet!)
+        $ gdb ./Seq64qt/qplseq64 (for debugging)
+
+    One can also use "CONFIG += release", or just leave that off entirely.
+
+    Our aim is to get a nice static build that works under Linux or Windows.
+    Currently, we have tried only using the "mingw" tools in Windows, not the
+    "msvc" (Microsoft) tools.  For debugging, gdb can be used, but QtCreator
+    is an easier debugging interface.
 
 CONFIGURE OPTIONS FOR APPLICATION FEATURES:
 
@@ -224,8 +295,8 @@ CONFIGURE OPTIONS FOR APPLICATION FEATURES:
         the pattern and song editors, which enable transposing whole songs, or
         just sequences that are marked as transposable.  This feature is
         grabbed from https://github.com/Stazed/seq32.  It does not affect the
-        ability to select notes and transpose them individually.  It doe
-        affect Aftertouch events.
+        ability to select notes and transpose them individually.  It does
+        affect Aftertouch events.  Not yet supported in the Qt user-interface.
 
     --disable-seq32jack (obsolete, removed)
 
@@ -300,9 +371,9 @@ MANUALLY-DEFINED MACROS IN CODE:
         a lot trying to get it to work.  However, it is available if
         building for Qt support (i.e. SEQ64_QTMIDI_SUPPORT is defined).
 
-    SEQ64_STAZED_EXPAND_RECORD:
+    SEQ64_STAZED_EXPAND_RECORD:     (now a permanent, unmacroed feature)
 
-        This macro, defined by default, turns on the ability to specify
+        This macro, now permanent, turns on the ability to specify
         different behavior in recording.  Normally, when a pattern loops to
         the beginning, and new events are received, then these new events are
         added to the events already there.  If this macro is defined, then
@@ -477,8 +548,8 @@ MANUALLY-DEFINED MACROS IN CODE:
         temporarily break stuff or add annoying console output.
         The "TMI" in some denotes debug code that dumps too much information
         (TMI) to the console, so has to be enabled by editing it on those
-        occasions where.  The "XXX" is similar, disabling the macro no matter
-        what.
+        occasions where you really want it.  The "XXX" is similar, disabling
+        the macro no matter what.  It is more serious than "TMI" :-D.
 
         We have incorporated some very useful code from the Seq32 project
         of the user "stazed".  He includes some new features and some bug

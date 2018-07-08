@@ -1,24 +1,32 @@
 /**
- * \file    file_functions.cpp
+ * \file          file_functions.cpp
  *
  *    Provides the implementations for safe replacements for the various C
  *    file functions.
  *
- * \author  Chris Ahlstrom
- * \date    2015-11-20
- * \updates 2015-11-23
- * \version $Revision$
+ * \library       sequencer64 application
+ * \author        Chris Ahlstrom
+ * \date          2015-11-20
+ * \updates       2018-04-22
+ * \version       $Revision$
  *
  *    We basically include only the functions we need for Sequencer64, not
  *    much more than that.  These functions are adapted from our xpc_basic
  *    project.
  */
 
+#include <algorithm>                    /* std::replace() function          */
+#include <stdlib.h>                     /* realpath(3) or _fullpath()       */
+#include <string.h>                     /* strlen() etc.                    */
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include "easy_macros.h"
 #include "file_functions.hpp"           /* free functions in seq64 n'space  */
+
+#if SEQ64_HAVE_LIMITS_H
+#include <limits.h>                     /* PATH_MAX                         */
+#endif
 
 #if defined _MSC_VER                    /* Microsoft compiler               */
 
@@ -257,7 +265,7 @@ file_is_directory (const std::string & filename)
 /**
  *  A function to ensure that the ~/.config/sequencer64 directory exists.
  *  This function is actually a little more general than that, but it is not
- *  sufficiently general, in general.
+ *  sufficiently general, in general, General.
  *
  * \param pathname
  *      Provides the name of the path to create.  The parent directory of the
@@ -289,6 +297,147 @@ make_directory (const std::string & pathname)
             int rcode = mkdir(pathname.c_str(), 0700);
 #endif
             result = rcode == 0;
+        }
+    }
+    return result;
+}
+
+/**
+ *  Provides the path name of the current working directory.  This function is a
+ *  wrapper for getcwd() and other such functions.  It obtains the current
+ *  working directory in the application.
+ *
+ * \return
+ *      The pointer to the string containg the name of the current directory.
+ *      This name is the full path name for the directory.  If an error occurs,
+ *      then an empty string is returned.
+ */
+
+std::string
+get_current_directory ()
+{
+    std::string result;
+    char temp[PATH_MAX];
+    char * cwd = GETCWD(temp, PATH_MAX);  /* get current directory      */
+    if (not_nullptr(cwd))
+    {
+      size_t len = strlen(cwd);
+      if (len > 0)
+         result = cwd;
+      else
+      {
+         errprint("empty directory name returned");
+      }
+   }
+   else
+   {
+      errprint("could not get current directory");
+   }
+   return result;
+}
+
+/**
+ *  Given a path, relative or not, this function returns the full path.
+ *  It uses the Linux function realpath(3), which returns the canonicalized
+ *  absolute path-name.  For Windows, the function _fullpath() is used.
+ *
+ * \param path
+ *      Provides the path, which may be relative.
+ *
+ * \return
+ *      Returns the full path.  If a problem occurs, the result is empty.
+ */
+
+std::string
+get_full_path (const std::string & path)
+{
+    std::string result;
+    if (! path.empty())
+    {
+#if defined PLATFORM_WINDOWS
+        char temp[256];
+        char * resolved_path = _fullpath(temp, path.c_str(), 256);
+#else
+        char * resolved_path = realpath(path.c_str(), NULL);
+#endif
+        if (not_NULL(resolved_path))
+        {
+            result = resolved_path;
+            free(resolved_path);
+        }
+        else
+        {
+            // TODO: check the errno value and emit a message.
+        }
+    }
+    return result;
+}
+
+/**
+ *  Makes sure that the path-name is a UNIX path, separated by forward slashes
+ *  (the solidus).
+ *
+ * \param path
+ *      Provides the path, which should be a full path-name.
+ *
+ * \param to_unix
+ *      Defaults to true, which converts "\" to "/".  False converts in the
+ *      opposite direction.
+ *
+ * \return
+ *      The possibly modified path is returned.
+ */
+
+std::string
+normalize_path (const std::string & path, bool to_unix)
+{
+    std::string result;
+    if (! path.empty())
+    {
+        result = path;
+        if (to_unix)
+        {
+            std::string::size_type pos = path.find_first_of("\\");
+            if (pos != std::string::npos)
+                std::replace(result.begin(), result.end(), '\\', '/');
+        }
+        else
+        {
+            std::string::size_type pos = path.find_first_of("/");
+            if (pos != std::string::npos)
+                std::replace(result.begin(), result.end(), '/', '\\');
+        }
+    }
+    return result;
+}
+
+/**
+ *  Strips the double quotes from a string.  Meant mainly for removing quotes
+ *  around a file-name, so it works only if the first character is a quote,
+ *  and the last character is a quote.
+ *
+ * \param item
+ *      The string to be massaged.
+ *
+ * \return
+ *      The string without double quotes.  If it didn't have any, the string
+ *      should be unchanged.
+ */
+
+std::string
+strip_quotes (const std::string & item)
+{
+    std::string result;
+    if (! item.empty())
+    {
+        result = item;
+        std::string::size_type fpos = result.find_first_of("\"");
+        if (fpos == 0)
+        {
+            std::string::size_type lpos = result.find_last_of("\"");
+            std::string::size_type end_index = result.length() - 1;
+            if (lpos != std::string::npos && lpos == end_index)
+                result = result.substr(1, end_index - 1);
         }
     }
     return result;

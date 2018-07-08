@@ -27,7 +27,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-12-31
- * \updates       2017-04-14
+ * \updates       2017-05-31
  * \license       GNU GPLv2 or above
  *
  *  The businfo module defines the businfo and busarray classes so that we can
@@ -43,11 +43,10 @@
  *  are maintained, one for input and one for output.
  */
 
-
 #include <vector>                       /* for containing the bus objects   */
 
 #include "midibus_common.hpp"           /* enum clock_e                     */
-#include "midibus.hpp"                  /* seq64::midibus           */
+#include "midibus.hpp"                  /* seq64::midibus                   */
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -166,10 +165,18 @@ public:
         return m_initialized;
     }
 
+    /**
+     * \getter m_init_clock
+     */
+
     clock_e init_clock () const
     {
         return m_init_clock;
     }
+
+    /**
+     * \getter m_init_input
+     */
 
     bool init_input () const
     {
@@ -178,10 +185,18 @@ public:
 
 public:
 
+    /**
+     * \setter m_bus
+     */
+
     void bus (midibus * b)
     {
         m_bus = b;
     }
+
+    /**
+     * \setter m_active and m_initialized
+     */
 
     void activate ()
     {
@@ -189,18 +204,30 @@ public:
         m_initialized = true;
     }
 
+    /**
+     * \setter m_active and m_initialized
+     */
+
     void deactivate ()
     {
         m_active = false;
         m_initialized = false;
     }
 
+    /**
+     * \setter m_init_clock and bus clock
+     */
+
     void init_clock (clock_e clocktype)
     {
         m_init_clock = clocktype;
         if (not_nullptr(bus()))
-            bus()->set_clock_status(clocktype);
+            bus()->set_clock(clocktype);
     }
+
+    /**
+     * \setter m_init_input and bus input
+     */
 
     void init_input (bool flag)
     {
@@ -314,7 +341,7 @@ public:
     void set_all_inputs ();
     bool get_input (bussbyte bus);
     bool is_system_port (bussbyte bus);
-    bool poll_for_midi ();
+    int poll_for_midi ();
     bool get_midi_event (event * inev);
     int replacement_port (int bus, int port);
 

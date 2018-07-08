@@ -19,9 +19,18 @@
 /**
  * \file        finddefault.c
  *
- *  find_default_device() implementation.
+ *      Provides the find_default_device() implementation.
+ *
+ * \library     sequencer64 application
+ * \author      PortMIDI team; modifications by Chris Ahlstrom
+ * \date        2017-08-21
+ * \updates     2018-04-24
+ * \license     GNU GPLv2 or above
  *
  *  Roger Dannenberg, Jan 2009, some fixes and reformatting by Chris Ahlstrom.
+ *  However, since this uses Java "prefs", and Sequencer64 already has its
+ *  own configuration file, this code will not be used. Kept for any
+ *  "cover-your-ass" situations.
  */
 
 #include <ctype.h>
@@ -30,13 +39,8 @@
 #include <string.h>
 
 #include "portmidi.h"
+#include "finddefault.h"
 #include "pminternal.h"
-
-/**
- *
- */
-
-#define STRING_MAX 256
 
 /**
  * skip over spaces, return first non-space.
@@ -63,23 +67,25 @@ match_string (FILE * inf, char * s)
     while (*s && *s == getc(inf))
         s++;
 
-    return (*s == 0);
+    return *s == 0;
 }
 
 /**
- * Parse preference files, find default device, search devices
+ *  Parse preference files, find default device, search devices.
+ *
+ * TODO:  REPLACE THIS WITH Sequencer64 options.
  *
  * \param path
- *      the name of the preference we are searching for
+ *      The name of the preference we are searching for.
  *
  * \param input
- *      true iff this is an input device
+ *      Set to true if this is an input device.
  *
  * \param id
- *      current default device id
+ *      Current default device ID.
  *
  * \return
- *      matching device id if found, otherwise id
+ *      Matching device ID if found, otherwise the ID parameter.
  */
 
 PmDeviceID
@@ -136,7 +142,7 @@ find_default_device (char * path, int input, PmDeviceID id)
 
     while ((c = getc(inf)) != EOF)
     {
-        char pref_str[STRING_MAX];
+        char pref_str[PM_STRING_MAX];
         if (c != '"')
             continue;                   // scan up to quote
 
@@ -159,14 +165,14 @@ find_default_device (char * path, int input, PmDeviceID id)
 
         // now read the value up to the close quote
 
-        for (i = 0; i < STRING_MAX; i++)
+        for (i = 0; i < PM_STRING_MAX; ++i)
         {
             if ((c = getc(inf)) == '"')
                 break;
 
             pref_str[i] = c;
         }
-        if (i == STRING_MAX)
+        if (i == PM_STRING_MAX)
             continue;                   // value too long, ignore
 
         pref_str[i] = 0;                // BUG:  Was pref_str[i] == 0;

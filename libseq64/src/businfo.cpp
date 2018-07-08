@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-12-31
- * \updates       2018-01-25
+ * \updates       2018-05-31
  * \license       GNU GPLv2 or above
  *
  *  This file provides a base-class implementation for various master MIDI
@@ -59,7 +59,7 @@ businfo::businfo ()
     m_bus           (nullptr),
     m_active        (false),
     m_initialized   (false),
-    m_init_clock    (e_clock_off),
+    m_init_clock    (e_clock_off),      /* could end up disabled as well */
     m_init_input    (false)
 {
     // Empty body
@@ -88,7 +88,7 @@ businfo::businfo (midibus * bus)
     m_bus           (bus),
     m_active        (false),
     m_initialized   (false),
-    m_init_clock    (e_clock_off),
+    m_init_clock    (e_clock_off),      /* could end up disabled as well */
     m_init_input    (false)
 {
     // See the initialize() function
@@ -151,15 +151,38 @@ businfo::initialize ()
     bool result = not_nullptr(bus());
     if (result)
     {
-        if (! bus()->is_input_port())           /* not built in master bus  */
+        /*
+         *  If bus has been "disabled" (e_clock_disable), skip this port and
+         *  return true.  However, we still have a potential conflict
+         *  between "active", "initialized", and "disabled".
+         *
+         *  "Active" is used for:  enabling play(), set_clock(), get_clock(),
+         *  get_midi_bus_name(), set_input(), get_input(), is_system_port(),
+         *  replacement_port().
+         *
+         *  "Initialized" is used for: . . .
+         *
+         *  "Disabled" is currently used to making an OS-disabled,
+         *  non-openable port a non-fatal error.
+         */
+
+        if (bus()->port_disabled())
         {
-            if (bus()->is_virtual_port())
-                result = bus()->init_out_sub(); /* not built in master bus  */
-            else
-                result = bus()->init_out();
+            // int bussnumber = bus()->get_bus_index();
+            // result = mymasterbus.set_clock(bussnumber, e_clock_disabled);
         }
-        if (result)
-            activate();                         /* "initialized" & "active" */
+        else
+        {
+            if (! bus()->is_input_port())       /* not built in master bus  */
+            {
+                if (bus()->is_virtual_port())
+                    result = bus()->init_out_sub();
+                else
+                    result = bus()->init_out();
+            }
+            if (result)
+                activate();                     /* "initialized" & "active" */
+        }
     }
     else
     {
@@ -212,6 +235,8 @@ businfo::print () const
             flags += "Pos";
         else if (init_clock() == e_clock_mod)
             flags += "Mod";
+        else if (init_clock() == e_clock_disabled)
+            flags += "Disabled";
         else
             flags += "illegal!";
     }
@@ -316,7 +341,13 @@ busarray::add (midibus * bus, bool inputing)
 {
     size_t count = m_container.size();
     businfo b(bus);
-    m_container.push_back(b);
+
+    /*
+     * If we do this here, the copy of b never gets set!
+     *
+     * m_container.push_back(b);
+     */
+
     if (inputing)
     {
         bool was_inputing = bus->get_input();
@@ -324,6 +355,7 @@ busarray::add (midibus * bus, bool inputing)
             bus->set_input(inputing);       /* will call init_in()          */
     }
     b.init_input(inputing);                 /* just sets the flag (again)   */
+    m_container.push_back(b);               /* now we can push a copy       */
 #ifdef SEQ64_SHOW_API_CALLS
     printf
     (
@@ -381,8 +413,8 @@ busarray::stop ()
 }
 
 /**
- *  Continues from the given tick for all of the busses; used for output busses
- *  only.
+ *  Continues from the given tick for all of the busses; used for output
+ *  busses only.
  *
  * \param tick
  *      Provides the tick value for all busses to continue from.
@@ -397,8 +429,8 @@ busarray::continue_from (midipulse tick)
 }
 
 /**
- *  Initializes the clocking at the given tick for all of the busses; used for
- *  output busses only.
+ *  Initializes the clocking at the given tick for all of the busses; used
+ *  for output busses only.
  *
  * \param tick
  *      Provides the tick value for all busses use as the clock tick.
@@ -413,7 +445,8 @@ busarray::init_clock (midipulse tick)
 }
 
 /**
- *  Clocks at the given tick for all of the busses; used for output busses only.
+ *  Clocks at the given tick for all of the busses; used for output busses
+ *  only.
  *
  * \param tick
  *      Provides the tick value for all busses use as the clock tick.
@@ -446,7 +479,8 @@ busarray::sysex (event * ev)
  *  Plays an event, if the bus is proper.
  *
  * \param bus
- *      The MIDI buss on which to play the event.
+ *      The MIDI buss on which to play the event.  The buss number must be
+ *      valid (in range) and the bus must be active.
  *
  * \param e24
  *      A pointer to the event to be played.
@@ -474,16 +508,35 @@ busarray::play (bussbyte bus, event * e24, midibyte channel)
  *
  * \param clocktype
  *      Provides the type of clocking for the buss.
+ *
+ * \return
+ *      Returns true if the change was made.
  */
 
 bool
 busarray::set_clock (bussbyte bus, clock_e clocktype)
 {
-    bool result = bus < count() && m_container[bus].active();
+    /*
+     * Getting the current clock setting is essentially equivalent to:
+     *
+     *      m_container[bus].bus()->get_clock();
+     */
+
+    clock_e current = get_clock(bus);
+    bool result = bus < count() && current != clocktype;
     if (result)
     {
-        m_container[bus].init_clock(clocktype);
-        m_container[bus].bus()->set_clock(clocktype);
+        result = m_container[bus].active() || current == e_clock_disabled;
+        if (result)
+        {
+            m_container[bus].init_clock(clocktype);
+
+            /*
+             * Already done in the call above.
+             *
+             * m_container[bus].bus()->set_clock(clocktype);
+             */
+        }
     }
     return result;
 }
@@ -509,14 +562,26 @@ busarray::set_all_clocks ()
  *
  * \return
  *      Returns the clock value set for the desired buss.  If the buss is
- *      invalid, then e_clock_off is returned.
+ *      invalid, e_clock_off is returned.  If the buss is not active, we still
+ *      get the existing clock value.  The theory here is that we don't want
+ *      to junk the current clock value; it could alter what was read from the
+ *      "rc" file.
  */
 
 clock_e
 busarray::get_clock (bussbyte bus)
 {
-    if (bus < count() && m_container[bus].active())
+    if (bus < count())
+    {
+#ifdef USE_ACTIVITY_FLAG_CHECK
+        if (m_container[bus].active())
+            return m_container[bus].bus()->get_clock();
+        else
+            return e_clock_disabled;
+#else
         return m_container[bus].bus()->get_clock();
+#endif
+    }
     else
         return e_clock_off;
 }
@@ -553,7 +618,8 @@ busarray::get_midi_bus_name (int bus)
     std::string result;
     if (bus < count())
     {
-        if (m_container[bus].active())
+        clock_e current = get_clock(bus);
+        if (m_container[bus].active() || current == e_clock_disabled)
         {
             std::string busname = m_container[bus].bus()->bus_name();
             std::string portname = m_container[bus].bus()->port_name();
@@ -579,6 +645,9 @@ busarray::get_midi_bus_name (int bus)
             std::string status = "virtual";
             if (m_container[bus].initialized())
                 status = "disconnected";
+
+            if (m_container[bus].bus()->port_disabled())
+                status = "disabled";
 
             snprintf
             (
@@ -745,22 +814,27 @@ busarray::is_system_port (bussbyte bus)
  *  poll, which exits when some data is obtained.  It also applies only to the
  *  input busses.
  *
+ *  One issue is that we have no way of knowing here which MIDI input device
+ *  has MIDI input events waiting.  Should we randomize the order of polling
+ *  in order to avoid starving some input devices?
+ *
  * \return
- *      Returns true if a MIDI event was detected on one of the busses.  Note
- *      that this is a boolean value, while the midibase::poll_for_midi()
- *      function returns an integer.
+ *      Returns the number of MIDI events detected on one of the busses.  Note
+ *      that this is no longer a boolean value.
  */
 
-bool
+int
 busarray::poll_for_midi ()
 {
+    int result = 0;
     std::vector<businfo>::iterator bi;
     for (bi = m_container.begin(); bi != m_container.end(); ++bi)
     {
-        if (bi->bus()->poll_for_midi() > 0)
-            return true;
+        result = bi->bus()->poll_for_midi();
+        if (result > 0)
+            break;
     }
-    return false;
+    return result;
 }
 
 /**

@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2017-02-13
+ * \updates       2017-05-27
  * \license       GNU GPLv2 or above
  *
  *  This file provides a Windows-only implementation of the midibus class.
@@ -104,23 +104,31 @@ midibus::~midibus ()
 int
 midibus::api_poll_for_midi ()
 {
-    if (queue_number() >= 0)            /* used as a buss number here */
+    if (not_nullptr(m_pms) && queue_number() >= 0)          /* buss number  */
     {
         PmError err = Pm_Poll(m_pms);
 
         /*
-         * if (err == FALSE versus TRUE), too simplistic.
+         * if (err == FALSE versus TRUE), too simplistic.  Besides, FALSE ==
+         * pmNoError and pmNoData, and TRUE == any other value.
          */
 
-        if (err == pmNoError || err == pmNoData || err == pmGotData)
+        if (err == pmNoError || err == pmNoData)   // || err == pmGotData)
         {
             return 0;
         }
-        if (err == TRUE)
+        else if (err == pmGotData)
         {
-            errprintf("Pm_Poll: %s\n", Pm_GetErrorText(err));
             return 1;
         }
+
+#ifdef THIS_MAKES_SENSE                 /* it doesn't                   */
+        if (err == TRUE)                /* back to what it was          */
+        {
+            errprintf("Pm_Poll(): %s\n", Pm_GetErrorText(err));
+            return 1;
+        }
+#endif
     }
     return 0;
 }
@@ -132,15 +140,26 @@ midibus::api_poll_for_midi ()
  *      Returns true if the output port was successfully opened.
  */
 
-bool midibus::api_init_out ()
+bool
+midibus::api_init_out ()
 {
-    PmError err = Pm_OpenOutput(&m_pms, queue_number(), NULL, 100, NULL, NULL, 0);
-    if (err != pmNoError)
+    PmError err = Pm_OpenOutput
+    (
+        &m_pms, queue_number(), NULL, 100, NULL, NULL, 0
+    );
+    bool result = err == pmNoError;
+    if (! result)
     {
-        errprintf("Pm_OpenOutput: %s\n", Pm_GetErrorText(err));
-        return false;
+        errprintf("Pm_OpenOutput(): %s\n", Pm_GetErrorText(err));
+
+        /*
+         *  Set the clocking to e_clock_disable to indicate we should
+         *  not bother to use the port.  EXPERIMENTAL
+         */
+
+        set_clock(e_clock_disabled);
     }
-    return true;
+    return result;
 }
 
 /**
@@ -150,21 +169,27 @@ bool midibus::api_init_out ()
  *      Returns true if the input port was successfully opened.
  */
 
-bool midibus::api_init_in ()
+bool
+midibus::api_init_in ()
 {
     PmError err = Pm_OpenInput(&m_pms, queue_number(), NULL, 100, NULL, NULL);
-    if (err != pmNoError)
+    bool result = err == pmNoError;
+    if (! result)
     {
-        errprintf("Pm_OpenInput: %s\n", Pm_GetErrorText(err));
-        return false;
+        errprintf("Pm_OpenInput(): %s\n", Pm_GetErrorText(err));
     }
-    return true;
+    return result;
 }
 
 /**
  *  Takes a native event, and encodes to a Windows message, and writes it to
  *  the queue.  It fills a small byte buffer, sets the MIDI channel, make a
  *  message of it, and writes the message.
+ *
+ * \question
+ *      The subatomic glue (Windows/PortMidi) implementation of Seq24 uses a
+ *      mutex to lock this function.  Do we need to do that? Done in the
+ *      wrapper.
  *
  * \param e24
  *      The MIDI event to play.
@@ -176,7 +201,7 @@ bool midibus::api_init_in ()
 void
 midibus::api_play (event * e24, midibyte channel)
 {
-    midibyte buffer[3];                /* temp for midi data */
+    midibyte buffer[4];                /* temp for midi data */
     buffer[0] = e24->get_status();
     buffer[0] += (channel & 0x0F);
     e24->get_data(buffer[1], buffer[2]);
@@ -221,10 +246,13 @@ midibus::api_continue_from (midipulse /* tick */, midipulse beats)
 void
 midibus::api_start ()
 {
-    PmEvent event;
-    event.timestamp = 0;
-    event.message = Pm_Message(EVENT_MIDI_START, 0, 0);
-    Pm_Write(m_pms, &event, 1);
+    if (not_nullptr(m_pms) && ! port_disabled())
+    {
+        PmEvent event;
+        event.timestamp = 0;
+        event.message = Pm_Message(EVENT_MIDI_START, 0, 0);
+        Pm_Write(m_pms, &event, 1);
+    }
 }
 
 /**
@@ -235,15 +263,22 @@ midibus::api_start ()
 void
 midibus::api_stop ()
 {
-    PmEvent event;
-    event.timestamp = 0;
-    event.message = Pm_Message(EVENT_MIDI_STOP, 0, 0);
-    Pm_Write(m_pms, &event, 1);
+    if (not_nullptr(m_pms) && ! port_disabled())
+    {
+        PmEvent event;
+        event.timestamp = 0;
+        event.message = Pm_Message(EVENT_MIDI_STOP, 0, 0);
+        Pm_Write(m_pms, &event, 1);
+    }
 }
 
 /**
- *  Generates MIDI clock.
- *  This function is called by midibase::clock().
+ *  Generates MIDI clock.  This function is called by midibase::clock().
+ *
+ * \question
+ *      The subatomic glue (Windows/PortMidi) implementation of Seq24 uses a
+ *      mutex to lock this function.  Do we need to do that?  We do that, in
+ *      midibase::clock().
  *
  * \param tick
  *      The clock tick value, not used in the API implementation of this
@@ -253,10 +288,13 @@ midibus::api_stop ()
 void
 midibus::api_clock (midipulse /* tick */)
 {
-    PmEvent event;
-    event.timestamp = 0;                        // WHY NOT use 'tick' here???
-    event.message = Pm_Message(EVENT_MIDI_CLOCK, 0, 0);
-    Pm_Write(m_pms, &event, 1);
+    if (not_nullptr(m_pms) && ! port_disabled())
+    {
+        PmEvent event;
+        event.timestamp = 0;                /* WHY NOT use 'tick' here? */
+        event.message = Pm_Message(EVENT_MIDI_CLOCK, 0, 0);
+        Pm_Write(m_pms, &event, 1);
+    }
 }
 
 }           // namespace seq64

@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-11-23
- * \updates       2017-11-23
+ * \updates       2018-06-02
  * \license       GNU GPLv2 or above
  *
  *  This file provides a base-class implementation for various master MIDI
@@ -381,31 +381,13 @@ mastermidibase::save_clock (bussbyte bus, clock_e clock)
  *
  * \return
  *      If the buss number is legal, and the buss is active, then its clock
- *      setting is returned.  Otherwise, e_clock_off is returned.
+ *      setting is returned.  Otherwise, e_clock_disabled is returned.
  */
 
 clock_e
 mastermidibase::get_clock (bussbyte bus)
 {
     return m_outbus_array.get_clock(bus);
-}
-
-/**
- *  Initializes all fo the busses in the input and output buss arrays.
- *
- * \return
- *      Returns true if both busses were successfully initialized.
- */
-
-bool
-mastermidibase::initialize_buses ()
-{
-    automutex locker(m_mutex);
-    bool result = m_inbus_array.initialize();
-    if (result)
-        result = m_outbus_array.initialize();
-
-    return result;
 }
 
 /**
@@ -581,7 +563,8 @@ mastermidibase::print () const
  *  portmidi's poll_for_midi() function, maybe.  But currently it is better
  *  just call the implementation-specific API function.
  *
- *  Do we need to use a mutex lock?  NO!  It causes a deadlock!!!
+ * \warning
+ *      Do we need to use a mutex lock? No! It causes a deadlock!!!
  *
  * \return
  *      Returns the result of the poll, or 0 if the API is not supported.
@@ -591,6 +574,36 @@ int
 mastermidibase::poll_for_midi ()
 {
     return api_poll_for_midi();
+}
+
+/**
+ *  Provides a default implementation of api_poll_for_midi().  This
+ *  implementation adds a millisecond of sleep time unless more than two
+ *  events are pending.  Some input devices may need to override this
+ *  function.
+ *
+ *  For a quick threadsafe check, call is_more_input() instead.  But see the
+ *  warning in the non-API poll_for_midi() function.
+ *
+ * \return
+ *      Returns the number of events found by the first successful poll of the
+ *      array of input busses (m_inbus_array).
+ */
+
+int
+mastermidibase::api_poll_for_midi ()
+{
+    int result = m_inbus_array.poll_for_midi();
+    if (result > 0)
+    {
+        if (result <= 2)
+            millisleep(1);              /* is this sensible?    */
+    }
+    else
+    {
+        millisleep(1);
+    }
+    return result;
 }
 
 /**
@@ -612,7 +625,7 @@ bool
 mastermidibase::is_more_input ()
 {
     automutex locker(m_mutex);
-    return api_is_more_input();
+    return m_inbus_array.poll_for_midi() > 0;
 }
 
 /**
@@ -793,9 +806,9 @@ mastermidibase::dump_midi_input (event ev)
             else if (m_vector_sequence[i]->stream_event(ev))
             {
                 /*
-                 * Did we find a match to the sequence channel?  Then don't bother
-                 * with the remaining sequences.  Otherwise, pass the event to any
-                 * other recording sequences.
+                 * Did we find a match to the sequence channel?  Then don't
+                 * bother with the remaining sequences.  Otherwise, pass the
+                 * event to any other recording sequences.
                  */
 
                 if (m_vector_sequence[i]->channel_match())

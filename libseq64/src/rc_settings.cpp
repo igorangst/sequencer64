@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-09-22
- * \updates       2018-02-05
+ * \updates       2018-04-29
  * \license       GNU GPLv2 or above
  *
  *  Note that this module also sets the legacy global variables, so that
@@ -52,22 +52,23 @@
 #include <sys/stat.h>
 #endif
 
-#include "file_functions.hpp"           /* make_directory()             */
+#include "file_functions.hpp"           /* make_directory(), etc.       */
 #include "rc_settings.hpp"              /* seq64::rc_settings class     */
 #include "settings.hpp"                 /* seq64::rc()                  */
 
 /**
- *  Select the HOME or HOMEPATH environment variables depending on whether
- *  building for Windows or not.  Also select the appropriate directory
- *  separator for SLASH.
+ *  Select the HOME or LOCALAPPDATA environment variables depending on whether
+ *  building for Windows or not. LOCALAPPDATA points to the root of the
+ *  Windows user's configuration directory, AppData/Local.  Also select the
+ *  appropriate directory separator for PATH_SLASH.
  */
 
 #ifdef PLATFORM_WINDOWS
-#define HOME "HOMEPATH"
-#define SLASH "\\"
+#define HOME            "LOCALAPPDATA"
+#define PATH_SLASH      "\\"
 #else
-#define HOME "HOME"
-#define SLASH "/"
+#define HOME            "HOME"
+#define PATH_SLASH      "/"
 #endif
 
 /*
@@ -126,7 +127,7 @@ rc_settings::rc_settings ()
     m_application_name          (SEQ64_APP_NAME),
     m_app_client_name           (SEQ64_CLIENT_NAME),
     m_tempo_track_number        (0),
-    m_recent_files              ()                      /* std::list    */
+    m_recent_files              ()
 {
     // Empty body
 }
@@ -275,14 +276,14 @@ rc_settings::set_defaults ()
     m_filename.clear();
     m_jack_session_uuid.clear();
 #if defined PLATFORM_WINDOWS            /* but see home_config_directory()  */
-    m_last_used_dir             = "C:\\Users\\$USER";
-    m_config_directory          = "C:\\Users\\$USER";
+    m_last_used_dir             = "";
+    m_config_directory          = "sequencer64";
 #else
     m_last_used_dir             = "~/";
     m_config_directory          = ".config/sequencer64";
 #endif
-    m_config_filename           = "sequencer64.rc";
-    m_user_filename             = "sequencer64.usr";
+    m_config_filename           = "sequencer64.rc";     // adapts to app name
+    m_user_filename             = "sequencer64.usr";    // ditto
     m_config_filename_alt       = ".seq24rc";
     m_user_filename_alt         = ".seq24usr";
 
@@ -293,6 +294,7 @@ rc_settings::set_defaults ()
     m_app_client_name           = SEQ64_CLIENT_NAME;
     m_tempo_track_number        = 0;
     m_recent_files.clear();
+    set_config_files(SEQ64_CONFIG_NAME);
 }
 
 /**
@@ -308,7 +310,16 @@ rc_settings::set_defaults ()
  *  "sequencer64.rc".
  *
  *  This function should also adapt to Windows conventions automatically.
- *  We shall see.
+ *  We shall see.  No, it does not.  But all we have to do is replace
+ *  Window's HOMEPATH with its LOCALAPPDATA value.
+ *
+ * getenv(HOME):
+ *
+ *      -   Linux returns "/home/ahlstrom".  Append "/.config/sequencer64".
+ *      -   Windows returns "\Users\ahlstrom".  A better value than HOMEPATH
+ *          is LOCALAPPDATA, which gives us most of what we want:
+ *          "C:\Users\ahlstrom\AppData\local", and then we append simply
+ *          "sequencer64".
  *
  * \return
  *      Returns the selected home configuration directory.  If it does not
@@ -319,17 +330,25 @@ std::string
 rc_settings::home_config_directory () const
 {
     std::string result;
-    char * env = getenv(HOME);
+    char * env = getenv(HOME);                      /* see banner notes     */
     if (env != NULL)
     {
-        std::string home(env);                      // getenv(HOME);
-        result = home + SLASH;                      /* e.g. /home/username/  */
+        std::string home(env);                      /* getenv(HOME);        */
+        result = home + PATH_SLASH;                 /* e.g. /home/username/ */
         if (! rc().legacy_format())
         {
-            result += config_directory();           /* new, longer directory */
-            result += SLASH;
+            result += config_directory();           /* Seq64 directory      */
+#ifdef PLATFORM_UNIX
+            result += PATH_SLASH;
+#endif
             bool ok = make_directory(result);
-            if (! ok)
+            if (ok)
+            {
+#ifdef PLATFORM_WINDOWS
+                result += PATH_SLASH;
+#endif
+            }
+            else
             {
                 printf("? error creating [%s]\n", result.c_str());
                 result.clear();
@@ -432,6 +451,8 @@ rc_settings::tempo_track_number (int track)
  *
  * \param shorten
  *      If true, remove the path-name from the file-name.  True by default.
+ *      It needs to be short for the menu entry, but the full path-name for
+ *      the "rc" file.
  *
  * \return
  *      Returns m_recent_files[index], perhaps shortened.  An empty string is
@@ -441,42 +462,14 @@ rc_settings::tempo_track_number (int track)
 std::string
 rc_settings::recent_file (int index, bool shorten) const
 {
-    std::string result;
-    if (index >= 0 && index < recent_file_count())
-        result = m_recent_files[index];
-
-    if (shorten)
+    std::string result = m_recent_files.get(index);
+    if (shorten && ! result.empty())
     {
         std::string::size_type slashpos = result.find_last_of("/\\");
-        result = result.substr(slashpos + 1, std::string::npos);
+        if (slashpos != std::string::npos)
+            result = result.substr(slashpos + 1, std::string::npos);
     }
     return result;
-}
-
-/**
- * \setter m_recent_files
- *
- *  First makes sure the filename is not already present, before adding it.
- *
- * \param fname
- *      Provides the full path to the MIDI file that is to be added to the
- *      recent-files list.
- */
-
-void
-rc_settings::add_recent_file (const std::string & fname)
-{
-    bool found =
-        std::find(m_recent_files.begin(), m_recent_files.end(), fname) !=
-            m_recent_files.end();
-
-    if (! found)
-    {
-        if (m_recent_files.size() >= SEQ64_RECENT_FILES_MAX)
-            m_recent_files.pop_back();
-
-        m_recent_files.insert(m_recent_files.begin(), fname);
-    }
 }
 
 /**
@@ -558,21 +551,25 @@ rc_settings::jack_session_uuid (const std::string & value)
  * \setter m_last_used_dir
  *
  * \param value
- *      The value to use to make the setting.
+ *      The value to use to make the setting.  It needs to be a directory, not
+ *      a file.  Also, we now expand a relative directory to the full path to
+ *      that directory, to avoid ambiguity should the application be run from
+ *      a different directory.
  */
 
 void
 rc_settings::last_used_dir (const std::string & value)
 {
     if (! value.empty())
-        m_last_used_dir = value;
+        m_last_used_dir = get_full_path(value);
 }
 
 /**
  * \setter m_config_directory
  *
  * \param value
- *      The value to use to make the setting.
+ *      The value to use to make the setting.  Currently, we do not handle
+ *      relative paths.  To do so seems... iffy.
  */
 
 void

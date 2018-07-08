@@ -24,7 +24,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom and Tim Deagan
  * \date          2015-07-24
- * \updates       2018-03-05
+ * \updates       2018-05-25
  * \license       GNU GPLv2 or above
  *
  *  This class is probably the single most important class in Sequencer64, as
@@ -320,9 +320,6 @@ perform::perform (gui_assistant & mygui, int ppqn)
     m_screenset_offset          (0),
     m_playscreen                (0),        // vice m_screenset
     m_playscreen_offset         (0),
-#ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
-    m_auto_screenset_queue      (false),
-#endif
     m_max_sets                  (usr().max_sets()),     // c_max_sets
     m_sequence_count            (0),
     m_sequence_max              (c_max_sequence),
@@ -412,14 +409,20 @@ perform::~perform ()
  *  application.
  *
  *  Once the master buss is created, we then copy the clocks and input setting
- *  that were read from the "rc" file, via the mastermidibus::port_settings()
- *  function, to use in determining whether to initialize and connect the
- *  input ports at start-up.  Seq24 wouldn't connect unconditionally, and
- *  Sequencer64 shouldn't, either.
+ *  that were read from the "rc" file, via the mastermidibus ::
+ *  set_port_statuses() function, to use in determining whether to initialize
+ *  and connect the input ports at start-up.  Seq24 wouldn't connect
+ *  unconditionally, and Sequencer64 shouldn't, either.
  *
  *  However, the devices actually on the system at start time might be
  *  different from what was saved in the "rc" file after the last run of
  *  Sequencer64.
+ *
+ *  For output, both apps have always connected to all ports automatically.
+ *  But we want to support disabling some output ports, both in the "rc"
+ *  file and via the operating system indicating that it cannot open an
+ *  output port.  So how do we get the port-settings from the OS?  Probably
+ *  at initialization time.  See the mastermidibus constructor for PortMidi.
  *
  * \return
  *      Returns true if the creation succeeded, or if the buss already exists.
@@ -431,12 +434,20 @@ perform::create_master_bus ()
     bool result = not_nullptr(m_master_bus);
     if (! result)
     {
+#ifdef USE_DEFAULT_ARGS
         m_master_bus = new(std::nothrow) mastermidibus();   /* default args */
+#else
+        /*
+         * TEST TEST TEST!!!!
+         */
+
+        m_master_bus = new(std::nothrow) mastermidibus(m_ppqn, m_bpm);
+#endif
         result = not_nullptr(m_master_bus);
         if (result)
         {
             m_master_bus->filter_by_channel(m_filter_by_channel);
-            m_master_bus->port_settings(m_master_clocks, m_master_inputs);
+            m_master_bus->set_port_statuses(m_master_clocks, m_master_inputs);
 #ifdef SEQ64_MIDI_CTRL_OUT
             if (not_nullptr(m_midi_ctrl_out))
             {
@@ -475,20 +486,20 @@ perform::create_master_bus ()
 void
 perform::launch (int ppqn)
 {
-    if (create_master_bus())
+    if (create_master_bus())                /* also calls set_port_statuses()   */
     {
 
 #ifdef SEQ64_JACK_SUPPORT
         init_jack_transport();
 #endif
 
-        m_master_bus->init(ppqn, m_bpm);     /* calls api_init() per API */
+        m_master_bus->init(ppqn, m_bpm);    /* calls api_init() per API     */
 
         /*
          * We may need to copy the actually input buss settings back to here,
          * as they can change.  LATER.  They get saved properly anyway,
          * because the optionsfile object gets the information from the
-         * mastermidibus more directly.
+         * mastermidibus more directly.  Actually indirectly. :-)
          */
 
         if (activate())
@@ -497,6 +508,24 @@ perform::launch (int ppqn)
             launch_output_thread();
         }
     }
+}
+
+/**
+ *  The rough opposite of launch(); it doesn't stop the threads.  A minor
+ *  simplification for the main() routine, hides the JACK support macro.
+ *  We might need to add code to stop any ongoing outputing.
+ *
+ *  Also gets the settings made/changed while the application was running from
+ *  the mastermidibase class to here.  This action is the converse of calling
+ *  the set_port_statuses() function defined in the mastermidibase module.
+ */
+
+void
+perform::finish ()
+{
+    (void) deinit_jack_transport();
+    if (not_nullptr(m_master_bus))
+        m_master_bus->get_port_statuses(m_master_clocks, m_master_inputs);
 }
 
 #ifdef SEQ64_SONG_BOX_SELECT
@@ -516,6 +545,8 @@ perform::launch (int ppqn)
  *      Returns true if at least one set item was found to operate on.
  */
 
+#if __cplusplus >= 201103L                  /* C++11                        */
+
 bool
 perform::selection_operation (SeqOperation func)
 {
@@ -526,6 +557,8 @@ perform::selection_operation (SeqOperation func)
 
     return result;
 }
+
+#endif
 
 /**
  *  Selects the desired trigger for this sequence.  If this is the first
@@ -1419,35 +1452,47 @@ perform::toggle_playing_tracks ()
     if (song_start_mode())
         return;
 
-    if (m_armed_saved)
+    if (are_any_armed())
     {
-        m_armed_saved = false;
-        for (int i = 0; i < m_sequence_high; ++i)
+        if (m_armed_saved)
         {
-            if (m_armed_statuses[i])
+            m_armed_saved = false;
+            for (int i = 0; i < m_sequence_high; ++i)
             {
-                m_seqs[i]->toggle_song_mute();
-                m_seqs[i]->toggle_playing();        /* to show mute status  */
+                if (m_armed_statuses[i])
+                {
+                    m_seqs[i]->toggle_song_mute();
+                    m_seqs[i]->toggle_playing();        /* to show mute status  */
+                }
+            }
+        }
+        else
+        {
+            bool armed_status = false;
+            for (int i = 0; i < m_sequence_high; ++i)   /* m_sequence_max       */
+            {
+                if (is_active(i))
+                {
+                    armed_status = m_seqs[i]->get_playing();
+                    m_armed_statuses[i] = armed_status;
+                    if (armed_status)
+                    {
+                        m_armed_saved = true;           /* one was armed        */
+                        m_seqs[i]->toggle_song_mute();  /* toggle the arming    */
+                        m_seqs[i]->toggle_playing();    /* to show mute status  */
+                    }
+                }
             }
         }
     }
     else
     {
-        bool armed_status = false;
-        for (int i = 0; i < m_sequence_high; ++i)   /* m_sequence_max       */
-        {
-            if (is_active(i))
-            {
-                armed_status = m_seqs[i]->get_playing();
-                m_armed_statuses[i] = armed_status;
-                if (armed_status)
-                {
-                    m_armed_saved = true;           /* one was armed        */
-                    m_seqs[i]->toggle_song_mute();  /* toggle the arming    */
-                    m_seqs[i]->toggle_playing();    /* to show mute status  */
-                }
-            }
-        }
+        /*
+         * If no sequences are armed, then turn them all on, as a convenience
+         * to the user.
+         */
+
+        mute_all_tracks(false);
     }
 }
 
@@ -1845,7 +1890,7 @@ perform::set_active (int seq, bool active)
         {
             m_seqs[seq]->number(seq);
             if (m_seqs[seq]->name().empty())
-                m_seqs[seq]->set_name(std::string("Untitled"));
+                m_seqs[seq]->set_name();
         }
     }
 }
@@ -2453,7 +2498,7 @@ perform::get_screenset_notepad (int screenset) const
  *
  *  As a new feature, we would like to queue-mute the previous screenset,
  *  and queue-unmute the newly-selected screenset.  Still working on getting
- *  it right.  Still undefined: SEQ64_USE_AUTO_SCREENSET_QUEUE.
+ *  it right.  Aborted.
  *
  * \param ss
  *      The index of the desired new screen-set.  It is forced to range from
@@ -2473,27 +2518,11 @@ perform::set_screenset (int ss)
     if (ss < 0)
         ss = m_max_sets - 1;
     else if (ss >= m_max_sets)
-    {
-#if USE_THIS_DODGY_CODE
-        if (m_screenset == 0)
-            ss = m_max_sets - 1;    /* at zero, dropping to largest value   */
-        else
-            ss = 0;                 /* moving up from maximum back to 0     */
-#else
         ss = 0;
-#endif
-    }
 
     if ((ss != m_screenset) && is_screenset_valid(ss))
     {
-#ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
-        if (m_auto_screenset_queue)
-            swap_screenset_queues(m_screenset, ss);
-        else
-            m_screenset = ss;
-#else
         m_screenset = ss;
-#endif
         m_screenset_offset = screenset_offset(ss);
         unset_queued_replace();                 /* clear this new feature   */
 
@@ -2524,67 +2553,6 @@ perform::set_screenset (int ss)
     }
     return m_screenset;
 }
-
-#ifdef SEQ64_USE_AUTO_SCREENSET_QUEUE
-
-/**
- *  EXPERIMENTAL.  Doesn't quite work.  This may be due to a bug we found in
- *  mute_screenset(), on 2016-10-05, so we will revisit this functionality for
- *  0.9.19.  Or maybe not :-(.
- *
- * \param flag
- *      If the flag is true:
- *      -#  Mute all tracks in order to start from a known status for all
- *          screen-sets.
- *      -#  Unmute screen-set 0 (the first screen-set).
- */
-
-void
-perform::set_auto_screenset (bool flag)
-{
-    m_auto_screenset_queue = flag;
-}
-
-/**
- *  EXPERIMENTAL.  Doesn't quite work.  Queues all of the sequences in the
- *  given screen-set.  Doesn't work, even after a lot of hacking on it, so
- *  disabled for now.
- *
- * \param ss0
- *      The original screenset, will be unqueued.
- *
- * \param ss1
- *      The destination screenset, will be queued.
- */
-
-void
-perform::swap_screenset_queues (int ss0, int ss1)
-{
-    if (is_pattern_playing())
-    {
-        int seq0 = screenset_offset(ss0);
-        for (int s = 0; s < m_seqs_in_set; ++s, ++seq0)
-        {
-            if (is_active(seq0))
-                m_seqs[seq0]->off_queued();         // toggle_queued();
-        }
-
-        int seq1 = screenset_offset(ss1);
-        m_screenset = ss1;
-        for (int s = 0; s < m_seqs_in_set; ++s, ++seq1)
-        {
-            if (is_active(seq1))
-                m_seqs[seq1]->on_queued();          // toggle_queued();
-        }
-        set_playing_screenset();
-
-#ifdef PLATFORM_DEBUG_TMI
-        dump_mute_statuses("screen-set change");
-#endif
-    }
-}
-
-#endif  // SEQ64_USE_AUTO_SCREENSET_QUEUE
 
 /**
  *  Sets the screen-set that is active, based on the value of m_screenset.
@@ -4457,6 +4425,10 @@ perform::handle_midi_control (int ctl, bool state)
             unset_sequence_control_status(c_status_queue);
         break;
 
+    /*
+     * TODO:  c_status_oneshot
+     */
+
     case c_midi_control_mod_gmute:
 
         result = true;
@@ -4677,7 +4649,6 @@ perform::handle_midi_control_ex (int ctl, midi_control::action a, int v)
             result = true;
         }
         break;
-
     case c_midi_control_oneshot:
 
         if (a == midi_control::action_toggle)
@@ -4685,12 +4656,13 @@ perform::handle_midi_control_ex (int ctl, midi_control::action a, int v)
             if (m_control_status & c_status_oneshot)
             {
                 unset_sequence_control_status(c_status_oneshot);
+                result = true;
             }
             else
             {
                 set_sequence_control_status(c_status_oneshot);
+                result = true;
             }
-            result = true;
         }
         else if (a == midi_control::action_on)
         {
@@ -4700,6 +4672,24 @@ perform::handle_midi_control_ex (int ctl, midi_control::action a, int v)
         else if (a == midi_control::action_off)
         {
             unset_sequence_control_status(c_status_oneshot);
+            result = true;
+        }
+        
+    // using last control for overwrite/reset
+    case c_midi_control_19:
+        if (a == midi_control::action_toggle)
+        {
+            set_overwrite_recording(false, v, true);        /* toggles */
+            result = true;
+        }
+        else if (a == midi_control::action_on)
+        {
+            set_overwrite_recording(true, v);
+            result = true;
+        }
+        else if (a == midi_control::action_off)
+        {
+            set_overwrite_recording(false, v);
             result = true;
         }
         break;
@@ -4807,12 +4797,13 @@ perform::set_recording (bool record_active, int seq, bool toggle)
 void
 perform::set_quantized_recording (bool record_active, sequence * s)
 {
-    if (not_nullptr(s))
-        s->set_recording(record_active);
+  if (not_nullptr(s)) {
+        s->set_quantized_recording(record_active);
+  }
 }
 
 /**
- *  Sets qauntized recording.  This isn't quite consistent with setting
+ *  Sets quantized recording.  This isn't quite consistent with setting
  *  regular recording, which uses sequence::set_input_recording().
  *
  * \param record_active
@@ -4838,6 +4829,41 @@ perform::set_quantized_recording (bool record_active, int seq, bool toggle)
             s->set_quantized_recording(record_active);
     }
 }
+
+
+/**
+ *  Set recording for overwrite.
+ *  TODO: might probably as well create (bool rec_active, bool thru_active, sequence * s)
+ *  HOTFIX: ask for reset explicitely on toggle on since we don't have the GUI to control for progress 
+ *
+ * \param overwrite_active
+ *      Provides the current status of the overwrite mode.
+ *
+ * \param seq
+ *      The sequence number; the resulting pointer is checked.
+ *
+ * \param toggle
+ *      If true, ignore the first flag and let the sequence toggle its
+ *      setting.  Passed along to sequence::set_overwrite_rec().
+ */
+
+void
+perform::set_overwrite_recording (bool overwrite_active, int seq, bool toggle)
+{
+    sequence * s = get_sequence(seq);
+    if (not_nullptr(s))
+    {
+        if (toggle)
+            overwrite_active = ! s->get_overwrite_rec();
+	
+        // on overwrite the sequence will reset no matter what here
+	if (overwrite_active)
+            s->set_loop_reset(true);
+
+        s->set_overwrite_rec(overwrite_active);
+    }
+}
+
 
 /**
  *  Encapsulates code used by seqedit::thru_change_callback().
@@ -5217,7 +5243,9 @@ perform::input_func ()
 
                         if (m_master_bus->is_dumping())
                         {
-                            if (! midi_control_record(ev))
+			  // HOTFIX, will check for all events to prevent unwanted recordings
+			  // if (! midi_control_record(ev))
+                            if (! midi_control_event(ev))
                             {
                                 ev.set_timestamp(get_tick());
                                 if (rc().show_midi())
@@ -5895,7 +5923,7 @@ perform::sequence_label (const sequence & seq)
     if (is_active(sn))
     {
         char tmp[32];
-        int bus = seq.get_midi_bus();
+        bussbyte bus = seq.get_midi_bus();
         int chan = seq.is_smf_0() ? 0 : seq.get_midi_channel() + 1;
         int bpb = int(seq.get_beats_per_bar());
         int bw = int(seq.get_beat_width());
@@ -5929,6 +5957,41 @@ perform::sequence_label (int seqnum)
 }
 
 /**
+ *  Creates the sequence title, adjusting it for scaling down.
+ *
+ * \param seq
+ *      Provides the reference to the sequence, use for getting the sequence
+ *      parameters to be written to the label string.
+ *
+ * \return
+ *      Returns the filled in label if the sequence is active.
+ *      Otherwise, an empty string is returned.
+ */
+
+std::string
+perform::sequence_title (const sequence & seq)
+{
+    std::string result;
+    int sn = seq.number();
+    if (is_active(sn))
+    {
+        if (usr().window_scaled_down())
+        {
+            char temp[12];
+            snprintf(temp, sizeof temp, "%.11s", seq.title().c_str());
+            result = std::string(temp);
+        }
+        else
+        {
+            char temp[16];
+            snprintf(temp, sizeof temp, "%.14s", seq.title().c_str());
+            result = std::string(temp);
+        }
+    }
+    return result;
+}
+
+/**
  *  Sets the input bus, and handles the special "key labels on sequence" and
  *  "sequence numbers on sequence" functionality.  This function is called by
  *  options::input_callback().
@@ -5953,7 +6016,7 @@ perform::sequence_label (int seqnum)
  */
 
 void
-perform::set_input_bus (int bus, bool active)
+perform::set_input_bus (bussbyte bus, bool active)
 {
     if (bus >= SEQ64_DEFAULT_BUSS_MAX)                  /* 32 busses    */
     {
@@ -5969,7 +6032,7 @@ perform::set_input_bus (int bus, bool active)
                 s->set_dirty();
         }
     }
-    else if (bus >= 0)
+    else // if (bus >= 0)
     {
         if (m_master_bus->set_input(bus, active))
             set_input(bus, active);
@@ -5986,11 +6049,11 @@ perform::set_input_bus (int bus, bool active)
  *
  * \param clocktype
  *      Indicates whether the buss or the user-interface feature is
- *      e_clock_off, e_clock_pos, and e_clock_mod.
+ *      e_clock_off, e_clock_pos, e_clock_mod, or (new) e_clock_disabled.
  */
 
 void
-perform::set_clock_bus (int bus, clock_e clocktype)
+perform::set_clock_bus (bussbyte bus, clock_e clocktype)
 {
     if (m_master_bus->set_clock(bus, clocktype))     /* checks bus index, too */
         set_clock(bus, clocktype);
@@ -6124,44 +6187,187 @@ perform::mainwnd_key_event (const keystroke & k)
     unsigned key = k.key();
     if (k.is_press())
     {
-        if (key == keys().replace())
-            set_sequence_control_status(c_status_replace);
-        else if (key == keys().queue() || key == keys().keep_queue())
-            set_sequence_control_status(c_status_queue);
-        else if (key == keys().snapshot_1() || key == keys().snapshot_2())
-            set_sequence_control_status(c_status_snapshot);
-        else if (key == keys().set_playing_screenset())
-            set_playing_screenset();
-        else if (key == keys().group_on())
-            set_mode_group_mute();                  /* m_mode_group = true */
-        else if (key == keys().group_off())
-            unset_mode_group_mute();
-        else if (key == keys().group_learn())
-            set_mode_group_learn();
-#ifdef SEQ64_SONG_RECORDING
-        else if (key == keys().oneshot_queue())
-            set_sequence_control_status(c_status_oneshot);
-#endif
-        else
-            result = false;
+        if (! keyboard_group_c_status_press(key))
+        {
+            if (! keyboard_group_press(key))
+            {
+                if (key == keys().set_playing_screenset())
+                    set_playing_screenset();
+                else
+                    result = false;
+            }
+        }
     }
     else
     {
-        if (key == keys().replace())
-            unset_sequence_control_status(c_status_replace);
-        else if (key == keys().queue())
-            unset_sequence_control_status(c_status_queue);
-        else if (key == keys().snapshot_1() || key == keys().snapshot_2())
-            unset_sequence_control_status(c_status_snapshot);
-        else if (key == keys().group_learn())
-            unset_mode_group_learn();
-#ifdef SEQ64_SONG_RECORDING
-        else if (key == keys().oneshot_queue())
-            unset_sequence_control_status(c_status_oneshot);
-#endif
-        else
-            result = false;
+        if (! keyboard_group_c_status_release(key))
+        {
+            if (! keyboard_group_release(key))
+            {
+                result = false;
+            }
+        }
     }
+    return result;
+}
+
+/**
+ *  Still need to work on this one.
+ */
+
+bool
+perform::keyboard_control_press (unsigned key)
+{
+    bool result = true;
+    if (get_key_count(key) != 0)
+    {
+        // sequence_key(lookup_keyevent_key(kevent));      // kevent == seq???
+        int seqnum = lookup_keyevent_seq(key);
+        int keynum = seqnum;            // + m_call_seq_shift * c_seqs_in_set;
+        sequence_key(keynum);
+    }
+    else
+        result = false;
+
+    return result;
+}
+
+/**
+ *  Categories of keyboard actions:
+ *
+ *  -   [xxxxxxxxx]
+ *      -   perform::c_status "events".
+ *          -   c_status_replace.
+ *          -   c_status_queue.
+ *          -   c_status_snapshot.
+ *          -   c_status_oneshot.
+ *          -   Used by:
+ *              -   mainwnd::on_key_press_event() [perform::mainwnd_key_event()]
+ *      -   perform groups
+ *          -   On.
+ *          -   Off.
+ *          -   Learn.
+ *          -   Used by:
+ *              -   mainwnd::on_key_press_event() [perform::mainwnd_key_event()]
+ *      -   perform::playback_key_event().
+ *      -   perform::set_playing_screenset().
+ *          -   Start.
+ *          -   Stop.
+ *          -   Pause.
+ *      -   GUI framework specific
+ */
+
+bool
+perform::keyboard_group_c_status_press (unsigned key)
+{
+    bool result = true;
+    if (key == keys().replace())
+        set_sequence_control_status(c_status_replace);
+    else if (key == keys().queue() || key == keys().keep_queue())
+        set_sequence_control_status(c_status_queue);
+    else if (key == keys().snapshot_1() || key == keys().snapshot_2())
+        set_sequence_control_status(c_status_snapshot);
+    else if (key == keys().oneshot_queue())
+        set_sequence_control_status(c_status_oneshot);
+    else
+        result = false;
+
+    return result;
+}
+
+/**
+ *
+ */
+
+bool
+perform::keyboard_group_c_status_release (unsigned key)
+{
+    bool result = true;
+    if (key == keys().replace())
+        unset_sequence_control_status(c_status_replace);
+    else if (key == keys().queue())
+        unset_sequence_control_status(c_status_queue);
+    else if (key == keys().snapshot_1() || key == keys().snapshot_2())
+        unset_sequence_control_status(c_status_snapshot);
+    else if (key == keys().oneshot_queue())
+        unset_sequence_control_status(c_status_oneshot);
+    else
+        result = false;
+
+    return result;
+}
+
+/**
+ *
+ */
+
+bool
+perform::keyboard_group_press (unsigned key)
+{
+    bool result = true;
+    if (key == keys().group_on())
+        set_mode_group_mute();                  /* m_mode_group = true */
+    else if (key == keys().group_off())
+        unset_mode_group_mute();
+    else if (key == keys().group_learn())
+        set_mode_group_learn();
+    else
+        result = false;
+
+    return result;
+}
+
+/**
+ *
+ */
+
+bool
+perform::keyboard_group_release (unsigned key)
+{
+    bool result = true;
+    if (key == keys().group_learn())
+        unset_mode_group_learn();
+    else
+        result = false;
+
+    return result;
+}
+
+/**
+ *
+ */
+
+perform::action_t
+perform::keyboard_group_action (unsigned key)
+{
+    action_t result = ACTION_NONE;
+    if (key == keys().bpm_dn())
+    {
+        (void) decrement_beats_per_minute();
+        result = ACTION_BPM;
+    }
+    else if (key == keys().bpm_up())
+    {
+        (void) increment_beats_per_minute();
+        result = ACTION_BPM;
+    }
+    else if (key == keys().tap_bpm())
+    {
+        result = ACTION_BPM;            // make sure the tap records the BPM
+    }
+    else if (key == keys().screenset_dn())  // || k.is(SEQ64_Page_Down)) ???
+    {
+        (void) decrement_screenset();
+        result = ACTION_SCREENSET;
+    }
+    else if (key == keys().screenset_up())  // || k.is(SEQ64_Page_Up)) ???
+    {
+        (void) increment_screenset();
+        result = ACTION_SCREENSET;
+    }
+
+    // more to come
+
     return result;
 }
 
@@ -6418,27 +6624,6 @@ perform::playback_key_event (const keystroke & k, bool songmode)
     if (result)
     {
         bool onekey = keys().start() == keys().stop();
-
-#ifdef USE_CONSOLIDATED_PLAYBACK
-
-        playback_action_t action = PLAYBACK_STOP;
-        if (k.is(keys().start()))
-        {
-            if (onekey)
-            {
-                if (is_running())
-                    action = PLAYBACK_PAUSE;            // why pause, not stop?
-                else
-                    action = PLAYBACK_START;
-            }
-            else if (! is_running())
-                action = PLAYBACK_START;
-        }
-        else if (k.is(keys().pause()))
-            action = PLAYBACK_PAUSE;
-
-#else   // USE_CONSOLIDATED_PLAYBACK
-
         bool isplaying = false;
         if (k.is(keys().start()))
         {
@@ -6480,74 +6665,9 @@ perform::playback_key_event (const keystroke & k, bool songmode)
             }
         }
         is_pattern_playing(isplaying);
-
-#endif  // USE_CONSOLIDATED_PLAYBACK
-
     }
     return result;
 }
-
-#ifdef USE_CONSOLIDATED_PLAYBACK
-
-/**
- *  A more rational new function provided to unify the stop/start
- *  (space/escape) behavior of the various windows where playback can be
- *  started, paused, or stopped.  To be used in mainwnd, perfedit, and
- *  seqroll.  We want this function to be the one maintaining the various
- *  flags, if possible:  m_start_from_perfedit (seq32) and m_is_pattern_playing
- *  at a minimum.
- *
- * \param p
- *      Provides the playback action to perform.
- *
- * \param songmode
- *      Provides the "jack flag" needed by the mainwnd, seqroll, and perfedit
- *      windows.  Defaults to false, which disables Song mode, and enables
- *      Live mode.  But using Song mode seems to make the Pause key not work
- *      in the performance editor.
- *
- * \return
- *      Returns true if the patterns are playing, as opposed to not playing,
- *      by the end of this function.
- *
- * \sideeffect
- *      The m_is_pattern_playing flag is set to the return value for the
- *      caller.
- */
-
-bool
-perform::playback_action (playback_action_t p, bool songmode)
-{
-    bool isplaying = false;
-    if (p == PLAYBACK_START)
-    {
-        if (! is_running())             /* what about a restart???? */
-        {
-            start_playing(songmode);
-            isplaying = true;
-        }
-    }
-    else if (p == PLAYBACK_STOP)
-    {
-        stop_playing();
-    }
-    else if (p == PLAYBACK_PAUSE)
-    {
-        if (is_running())
-        {
-            pause_playing(songmode);
-        }
-        else
-        {
-            start_playing(songmode);
-            isplaying = true;
-        }
-    }
-    is_pattern_playing(isplaying);
-    return isplaying;
-}
-
-#endif  // USE_CONSOLIDATED_PLAYBACK
 
 /**
  *  Shows all the triggers of all the sequences.

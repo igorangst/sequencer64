@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2018-01-01
- * \updates       2018-03-06
+ * \updates       2018-05-27
  * \license       GNU GPLv2 or above
  *
  *  This class represents the central piano-roll user-interface area of the
@@ -44,6 +44,10 @@
 namespace seq64
 {
     class perform;
+
+static const int qc_eventarea_y     = 16;
+static const int qc_eventevent_y    = 10;
+static const int qc_eventevent_x    =  5;
 
 /**
  *
@@ -180,75 +184,52 @@ qstriggereditor::paintEvent (QPaintEvent *)
         painter.drawLine(base_line, 1, base_line, qc_eventarea_y);
     }
 
-    // draw event boxes
-
-    midipulse tick;
-    int x;
-    midibyte d0, d1;
-    bool selected;
-
     /* draw boxes from sequence */
 
     pen.setColor(Qt::black);
     pen.setStyle(Qt::SolidLine);
 
-    m_seq.reset_draw_marker();
-    while (m_seq.get_next_event_kepler(m_status, m_cc, tick, d0, d1, selected))
+    event_list::const_iterator cev;
+    m_seq.reset_ex_iterator(cev);                   /* reset_draw_marker()  */
+    while (m_seq.get_next_event_ex(m_status, m_cc, cev))
     {
+        midipulse tick = cev->get_timestamp();
         if ((tick >= start_tick && tick <= end_tick))
         {
-            /* turn into screen corrids */
-            x = tick / m_zoom + c_keyboard_padding_x;
-
-            //draw outer note border
-            pen.setColor(Qt::black);
+            bool selected = cev->is_selected();
+            int x = tick / m_zoom + c_keyboard_padding_x;
+            int y = (qc_eventarea_y - qc_eventevent_y) / 2;
+            pen.setColor(Qt::black);                /* outer note border    */
             brush.setStyle(Qt::SolidPattern);
             brush.setColor(Qt::black);
             painter.setBrush(brush);
             painter.setPen(pen);
-            painter.drawRect
-            (
-                x, (qc_eventarea_y - qc_eventevent_y) / 2,
-                qc_eventevent_x, qc_eventevent_y
-            );
-
-            if (selected)
-                brush.setColor(Qt::red);
-            else
-                brush.setColor(Qt::white);
-
-            //draw note highlight
-            painter.setBrush(brush);
-            painter.drawRect
-            (
-                x, (qc_eventarea_y - qc_eventevent_y) / 2,
-                qc_eventevent_x - 1, qc_eventevent_y - 1
-            );
+            painter.drawRect(x, y, qc_eventevent_x, qc_eventevent_y);
+            brush.setColor(selected ? Qt::red : Qt::white);
+            painter.setBrush(brush);                /* draw note highlight  */
+            painter.drawRect(x, y, qc_eventevent_x - 1, qc_eventevent_y - 1);
         }
+        ++cev;
     }
 
-    // draw selection
-
-    int w;
-    int y = (qc_eventarea_y - qc_eventevent_y) / 2;
+    int y = (qc_eventarea_y - qc_eventevent_y) / 2; /* draw selection       */
     int h =  qc_eventevent_y;
-
-    brush.setStyle(Qt::NoBrush); // painter reset
+    brush.setStyle(Qt::NoBrush);                    /* painter reset        */
     painter.setBrush(brush);
     if (m_selecting)
     {
-        x_to_w(m_drop_x, m_current_x, &x, &w);
+        int x, w;
+        x_to_w(m_drop_x, m_current_x, x, w);
         m_old->setX(x);
         m_old->setWidth(w);
         pen.setColor(Qt::black);
         painter.setPen(pen);
         painter.drawRect(x + c_keyboard_padding_x, y, w, h);
     }
-
     if (m_moving || m_paste)
     {
         int delta_x = m_current_x - m_drop_x;
-        x = m_selected->x() + delta_x;
+        int x = m_selected->x() + delta_x;
         pen.setColor(Qt::black);
         painter.setPen(pen);
         painter.drawRect(x + c_keyboard_padding_x, y, m_selected->width(), h);
@@ -268,7 +249,7 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
     midipulse tick_s;
     midipulse tick_f;
     midipulse tick_w;
-    convert_x(qc_eventevent_x, &tick_w);
+    convert_x(qc_eventevent_x, tick_w);
 
     /* if it was a button press */
 
@@ -283,8 +264,8 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
 
     if (m_paste)
     {
-        snap_x(&m_current_x);
-        convert_x(m_current_x, &tick_s);
+        snap_x(m_current_x);
+        convert_x(m_current_x, tick_s);
         m_paste = false;
         m_seq.push_undo();
         m_seq.paste_selected(tick_s, 0);
@@ -293,7 +274,7 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
     {
         if (event->button() == Qt::LeftButton)
         {
-            convert_x(m_drop_x, &tick_s);   /* turn x,y in to tick/note */
+            convert_x(m_drop_x, tick_s);   /* turn x,y in to tick/note */
             tick_f = tick_s + (m_zoom);     /* shift back a few ticks */
             tick_s -= (tick_w);
             if (tick_s < 0)
@@ -302,8 +283,8 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
             if (m_adding)
             {
                 m_painting = true;
-                snap_x(&m_drop_x);
-                convert_x(m_drop_x, &tick_s); /* turn x,y in to tick/note */
+                snap_x(m_drop_x);
+                convert_x(m_drop_x, tick_s); /* turn x,y in to tick/note */
 
                 /* add note, length = little less than snap */
 
@@ -364,8 +345,8 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
                     m_seq.get_selected_box(tick_s, note, tick_f, note);
                     tick_f += tick_w;
 
-                    convert_t(tick_s, &x); /* convert box to X,Y values */
-                    convert_t(tick_f, &w);
+                    convert_t(tick_s, x); /* convert box to X,Y values */
+                    convert_t(tick_f, w);
 
                     /* w is actually coorids now, so we have to change */
 
@@ -382,17 +363,17 @@ qstriggereditor::mousePressEvent (QMouseEvent *event)
                     /* save offset that we get from the snap above */
 
                     int adjusted_selected_x = m_selected->x();
-                    snap_x(&adjusted_selected_x);
+                    snap_x(adjusted_selected_x);
                     m_move_snap_offset_x =
                         m_selected->x() - adjusted_selected_x;
 
                     /* align selection for drawing */
                     //save X as a variable so we can use the snap function
                     int tempSelectedX = m_selected->x();
-                    snap_x(&tempSelectedX);
+                    snap_x(tempSelectedX);
                     m_selected->setX(tempSelectedX);
-                    snap_x(&m_current_x);
-                    snap_x(&m_drop_x);
+                    snap_x(m_current_x);
+                    snap_x(m_drop_x);
                 }
             }
 
@@ -417,7 +398,7 @@ qstriggereditor::mouseReleaseEvent (QMouseEvent * event)
     int x, w;
     m_current_x = (int) event->x() - c_keyboard_padding_x;
     if (m_moving)
-        snap_x(&m_current_x);
+        snap_x(m_current_x);
 
     int delta_x = m_current_x - m_drop_x;
     midipulse delta_tick;
@@ -425,9 +406,9 @@ qstriggereditor::mouseReleaseEvent (QMouseEvent * event)
     {
         if (m_selecting)
         {
-            x_to_w(m_drop_x, m_current_x, &x, &w);
-            convert_x(x,   &tick_s);
-            convert_x(x + w, &tick_f);
+            x_to_w(m_drop_x, m_current_x, x, w);
+            convert_x(x, tick_s);
+            convert_x(x + w, tick_f);
             m_seq.select_events(tick_s, tick_f, m_status, m_cc, sequence::e_select);
         }
 
@@ -437,7 +418,7 @@ qstriggereditor::mouseReleaseEvent (QMouseEvent * event)
 
             /* convert deltas into screen corridinates */
 
-            convert_x(delta_x, &delta_tick);
+            convert_x(delta_x, delta_tick);
 
             /* not really notes, but still moves events */
 
@@ -476,13 +457,13 @@ qstriggereditor::mouseMoveEvent (QMouseEvent * event)
     {
         m_current_x = (int) event->x() - c_keyboard_padding_x;
         if (m_moving || m_paste)
-            snap_x(&m_current_x);
+            snap_x(m_current_x);
     }
     if (m_painting)
     {
         m_current_x = (int) event->x();
-        snap_x(&m_current_x);
-        convert_x(m_current_x, &tick);
+        snap_x(m_current_x);
+        convert_x(m_current_x, tick);
         drop_event(tick);
     }
 }
@@ -552,17 +533,17 @@ qstriggereditor::keyReleaseEvent (QKeyEvent *)
  */
 
 void
-qstriggereditor::x_to_w (int a_x1, int a_x2, int *a_x, int *a_w)
+qstriggereditor::x_to_w (int  x1, int  x2, int & x, int & w)
 {
-    if (a_x1 < a_x2)
+    if ( x1 <  x2)
     {
-        *a_x = a_x1;
-        *a_w = a_x2 - a_x1;
+        x = x1;
+        w = x2 - x1;
     }
     else
     {
-        *a_x = a_x2;
-        *a_w = a_x1 - a_x2;
+        x = x2;
+        w = x1 - x2;
     }
 }
 
@@ -579,8 +560,8 @@ qstriggereditor::start_paste ()
     int note_l;
     int x, w;
 
-    snap_x(&m_current_x);
-    snap_y(&m_current_x);
+    snap_x(m_current_x);
+    snap_y(m_current_x);
     m_drop_x = m_current_x;
     m_drop_y = m_current_y;
     m_paste = true;
@@ -589,9 +570,8 @@ qstriggereditor::start_paste ()
 
     m_seq.get_clipboard_box(tick_s, note_h, tick_f, note_l);
 
-    /* convert box to X,Y values */
-    convert_t(tick_s, &x);
-    convert_t(tick_f, &w);
+    convert_t(tick_s, x);           /* convert box to X,Y values */
+    convert_t(tick_f, w);
 
     /* w is actually corrids now, so we have to change */
 
@@ -614,9 +594,9 @@ qstriggereditor::start_paste ()
  */
 
 void
-qstriggereditor::convert_x (int a_x, long *a_tick)
+qstriggereditor::convert_x (int x, midipulse & tick)
 {
-    *a_tick = a_x * m_zoom;
+    tick = x * m_zoom;
 }
 
 /**
@@ -624,9 +604,9 @@ qstriggereditor::convert_x (int a_x, long *a_tick)
  */
 
 void
-qstriggereditor::convert_t (midipulse a_ticks, int *a_x)
+qstriggereditor::convert_t (midipulse ticks, int & x)
 {
-    *a_x = a_ticks /  m_zoom;
+    x = ticks / m_zoom;
 }
 
 /**
@@ -659,9 +639,9 @@ qstriggereditor::drop_event (midipulse a_tick)
  */
 
 void
-qstriggereditor::snap_y (int *a_y)
+qstriggereditor::snap_y (int & y)
 {
-    *a_y = *a_y - (*a_y % keyY);
+    y -= y % keyY;
 }
 
 /**
@@ -672,14 +652,13 @@ qstriggereditor::snap_y (int *a_y)
  */
 
 void
-qstriggereditor::snap_x (int *a_x)
+qstriggereditor::snap_x (int & x)
 {
     int mod = (m_snap / m_zoom);
     if (mod <= 0)
         mod = 1;
 
-    *a_x = *a_x - (*a_x % mod);
-
+    x -= (x % mod);
 }
 
 /**
@@ -706,10 +685,10 @@ qstriggereditor::set_adding (bool a_adding)
  */
 
 void
-qstriggereditor::set_data_type (midibyte a_status, midibyte a_control)
+qstriggereditor::set_data_type (midibyte status, midibyte control)
 {
-    m_status = a_status;
-    m_cc = a_control;
+    m_status = status;
+    m_cc = control;
 }
 
 }           // namespace seq64

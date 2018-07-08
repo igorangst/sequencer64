@@ -28,7 +28,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-25
- * \updates       2018-02-06
+ * \updates       2018-05-27
  * \license       GNU GPLv2 or above
  *
  *  We're going to try to collect all the globals here in one module, and
@@ -300,7 +300,10 @@ const int c_num_keys = SEQ64_MIDI_COUNT_MAX;      // 128
  *  piano roll.
  */
 
-const int c_key_height = 12;
+/*
+ * Replaced by usr().key_height():  const int c_key_height = 12
+ */
+
 const int c_keyarea_x = 36;
 const int c_keyoffset_x = c_keyarea_x - c_key_x;
 const int c_keyarea_y = c_key_y * c_num_keys + 1;
@@ -354,9 +357,10 @@ const int c_midi_notes = SEQ64_MIDI_NOTES_MAX;
 
 /**
  *  Provides the default string for the name of a pattern or sequence.
+ *  Now a static member of sequence, under the name m_default_name.
+ *
+ *      const std::string c_dummy = "Untitled";
  */
-
-const std::string c_dummy = "Untitled";
 
 /**
  *  Provides the maximum size of sequence, and the default size.

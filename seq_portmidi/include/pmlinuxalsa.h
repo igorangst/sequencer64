@@ -22,7 +22,16 @@
 /**
  * \file        pmlinuxalsa.h
  *
- *  System-specific definitions.
+ *  ALSA setup/teardown functions for Linux.
+ *
+ * \library     sequencer64 application
+ * \author      PortMIDI team; modifications by Chris Ahlstrom
+ * \date        2017-08-21
+ * \updates     2018-04-10
+ * \license     GNU GPLv2 or above
+ *
+ *  System-specific definitions for the Linux ALSA sub-system. Compare to the
+ *  pmwinmm.h header file.
  */
 
 #ifdef __cplusplus

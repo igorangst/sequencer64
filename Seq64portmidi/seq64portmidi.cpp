@@ -25,7 +25,7 @@
  * \library       seq64portmidi application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-11-25
- * \updates       2018-02-09
+ * \updates       2018-04-22
  * \license       GNU GPLv2 or above
  *
  *  Note that there are a number of header files that we don't need to add
@@ -41,10 +41,15 @@
 #include <gtkmm/main.h>
 
 #include "cmdlineopts.hpp"              /* command-line functions           */
+#include "daemonize.hpp"                /* seq64::reroute_stdio()           */
 #include "file_functions.hpp"           /* seq64::file_accessible()         */
 #include "gui_assistant_gtk2.hpp"       /* seq64::gui_assistant_gtk2        */
 #include "gui_palette_gtk2.hpp"         /* colors and "inverse" colors      */
+
+#ifdef PLATFORM_LINUX
 #include "lash.hpp"                     /* seq64::lash_driver functions     */
+#endif
+
 #include "mainwid.hpp"                  /* needed to fulfill mainwnd        */
 #include "mainwnd.hpp"                  /* the main window of seq64portmidi */
 #include "settings.hpp"                 /* seq64::usr() and seq64::rc()     */
@@ -81,7 +86,7 @@ main (int argc, char * argv [])
     Gtk::Main kit(argc, argv);              /* strip GTK+ parameters        */
     seq64::rc().set_defaults();             /* start out with normal values */
     seq64::usr().set_defaults();            /* start out with normal values */
-    (void) seq64::parse_log_option(argc, argv);    /* -o log=file.ext early */
+    (void) seq64::parse_log_option(argc, argv);   /* -o log=file.ext early  */
 
     /*
      * Set up objects that are specific to the Gtk-2 GUI.  Pass them to the
@@ -116,6 +121,10 @@ main (int argc, char * argv [])
 
             p.seqs_in_set(seq64::usr().seqs_in_set());
             p.max_sets(seq64::usr().max_sets());
+
+            std::string logfile = seq64::usr().option_logfile();
+            if (seq64::usr().option_use_logfile() && ! logfile.empty())
+                (void) seq64::reroute_stdio(logfile);
         }
 
         p.launch(seq64::usr().midi_ppqn());     /* set up performance       */
@@ -148,7 +157,17 @@ main (int argc, char * argv [])
                 if (seq64::file_accessible(midifilename))
                     seq24_window.open_file(midifilename);
                 else
-                    printf("? MIDI file not found: %s\n", midifilename.c_str());
+                {
+                    char temp[256];
+                    (void) snprintf
+                    (
+                        temp, sizeof temp,
+                        "? MIDI file not found: %s\n", midifilename.c_str()
+                    );
+                    printf(temp);
+                    // seq24_window.show_message_box(std::string(temp));
+                    seq24_window.rc_error_dialog(std::string(temp));
+                }
             }
 
 #ifdef PLATFORM_LINUX

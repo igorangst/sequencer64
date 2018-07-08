@@ -10,7 +10,7 @@
  * \library       sequencer64
  * \author        Chris Ahlstrom and other authors; see documentation
  * \date          2013-11-17
- * \updates       2018-01-31
+ * \updates       2018-04-12
  * \version       $Revision$
  * \license       GNU GPL v2 or above
  *
@@ -27,7 +27,6 @@
  *  really should have the "hpp" extension now.  Oh well.
  */
 
-#include <string>
 #include <stdio.h>
 
 #include "platform_macros.h"
@@ -122,16 +121,20 @@
 #endif
 
 /**
- *    Test for being a valid pointer.
+ *    Test for being a valid pointer.  The not_NULL() macro is meant for C
+ *    code that returns NULL.
  */
 
+#define not_NULL(x)             ((x) != NULL)
 #define not_nullptr(x)          ((x) != nullptr)
 #define not_nullptr_2(x1, x2)   ((x1) != nullptr && (x2) != nullptr)
 
 /**
- *    Test for being an invalid pointer.
+ *    Test for being an invalid pointer.  The is_NULL() macro is meant for C
+ *    code that returns NULL.
  */
 
+#define is_NULL(x)              ((x) == NULL)
 #define is_nullptr(x)           ((x) == nullptr)
 
 /**
@@ -328,31 +331,6 @@ typedef bool cbool_t;
 #else
 #define apiprint(name, tag)
 #endif
-
-/**
- * Global functions.  The not_nullptr_assert() function is a macro in
- * release mode, to speed up release mode.  It cannot do anything at
- * all, since it is used in the conditional part of if-statements.
- */
-
-#ifdef PLATFORM_DEBUG
-extern bool not_nullptr_assert (void * ptr, const std::string & context);
-#else
-#define not_nullptr_assert(ptr, context) (not_nullptr(ptr))
-#endif
-
-/*
- *  Do not document a namespace; it breaks Doxygen.
- */
-
-namespace seq64
-{
-
-extern std::string message_concatenate (const char * m1, const char * m2);
-extern bool info_message (const std::string & msg);
-extern bool error_message (const std::string & msg);
-
-}               /* namespace seq64      */
 
 #endif          /* SEQ64_EASY_MACROS_H  */
 

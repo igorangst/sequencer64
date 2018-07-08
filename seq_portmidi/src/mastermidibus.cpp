@@ -25,18 +25,19 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-07-24
- * \updates       2017-03-23
+ * \updates       2017-06-02
  * \license       GNU GPLv2 or above
  *
  *  This file provides a Windows-only implementation of the mastermidibus
  *  class.  There is a lot of common code between these two versions!
  */
 
-#include "easy_macros.h"                /* handy macros                     */
 #include "event.hpp"                    /* seq64::event                     */
 #include "mastermidibus_pm.hpp"         /* seq64::mastermidibus, PortMIDI   */
 #include "midibus_pm.hpp"               /* seq64::midibus, PortMIDI         */
 #include "portmidi.h"                   /* external PortMidi header file    */
+#include "porttime.h"                   /* Pt_Time_To_Pulses()              */
+#include "pmutil.h"                     /* Pm_Dequeue()                     */
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -61,7 +62,15 @@ mastermidibus::mastermidibus (int ppqn, midibpm bpm)
  :
     mastermidibase      (ppqn, bpm)
 {
-    Pm_Initialize();
+    /**
+     * New features. Turn off exiting upon errors so that the application
+     * has a chance to come up and display the error(s).  Set BPM and PPQN
+     * in the PortMidi module.  The ppqn parameter defaults to -1 here.
+     */
+
+    Pm_set_exit_on_error(FALSE);
+    Pt_Set_Midi_Timing(double(bpm), ppqn);              /* do this first    */
+    Pm_Initialize();                                    /* do this second   */
 }
 
 /**
@@ -75,8 +84,22 @@ mastermidibus::~mastermidibus ()
 }
 
 /**
+ *  Here, we want to first make sure that the ports that the OS cannot access
+ *  are disable, before we activate them.  Otherwise, they fail and prevent
+ *  working ports from operating.
+ */
+
+bool
+mastermidibus::activate ()
+{
+    bool result = mastermidibase::activate();
+    Pm_print_devices();
+    return result;
+}
+
+/**
  *  Provides the PortMidi implementation needed for the init() function.
- *  Unlike the seq24 ALSA implementation, this version does not support the
+ *  Unlike the seq24 ALSA implementation, this version does NOT support the
  *  --manual-alsa-ports option.  It initializes as many input and output MIDI
  *  devices as are found by Pm_CountDevices(), and the flags
  *  PmDeviceInfo::input and output determine what category of MIDI device it
@@ -98,65 +121,51 @@ mastermidibus::~mastermidibus ()
 void
 mastermidibus::api_init (int ppqn, midibpm /*bpm*/)
 {
-    int num_devices = Pm_CountDevices();
-    const PmDeviceInfo * dev_info = nullptr;
+    int num_devices = Pm_device_count();    /* Pm_CountDevices()    */
     int numouts = 0;
     int numins = 0;
     for (int i = 0; i < num_devices; ++i)
     {
-        dev_info = Pm_GetDeviceInfo(i);
-
-#ifdef PLATFORM_DEBUG_TMI
-        fprintf
-        (
-            stderr, "[%s device %d: %s in:%d out:%d\n",
-            dev_info->interf, i, dev_info->name,
-            dev_info->input, dev_info->output
-        );
-#endif
-
+        const PmDeviceInfo * dev_info = Pm_GetDeviceInfo(i);
         if (dev_info->output)
         {
             /*
-             * The parameters here are bus ID, port ID, and client name.
+             * The parameters here are the bus index (within the input or output
+             * busarry), the bus ID (currently identical to the bus index,
+             * hmmmmm), the port ID, and the client name.
              */
 
-            midibus * m = new midibus
-            (
-                i, numouts, i, dev_info->name   // false, false NEEDED
-            );
-            m->is_virtual_port(false);
+            midibus * m = new midibus(numouts, numouts, i, dev_info->name);
             m->is_input_port(false);
-            m_outbus_array.add(m, clock(i));
+            m->is_virtual_port(false);
+            m_outbus_array.add(m, clock(numouts));      /* not i    */
             ++numouts;
         }
         else if (dev_info->input)
         {
             /*
-             * The parameters here are bus ID, port ID, and client name.
+             * The parameters here are bus index, bus ID, port ID, and client
+             * name.
              */
 
-            midibus * m = new midibus
-            (
-                i, numins, i, dev_info->name    // true, false NEEDED
-            );
-            m->is_virtual_port(false);
+            midibus * m = new midibus(numins, numins, i, dev_info->name);
             m->is_input_port(true);
-            m_inbus_array.add(m, input(i));
+            m->is_virtual_port(false);
+            m_inbus_array.add(m, input(numins));        /* not i    */
             ++numins;
         }
     }
 
     set_beats_per_minute(c_beats_per_minute);
-    set_ppqn(ppqn);                             // m_ppqn); SEQ64_DEFAULT_PPQN);
+    set_ppqn(ppqn);
     set_sequence_input(false, nullptr);
 
-#if 0                                           // what does this bus DO?
+#ifdef USE_ANNOUNCE_BUS_WITH_PORTMIDI           /* what does this bus DO?   */
     m_bus_announce = new midibus
     (
         snd_seq_client_id(m_alsa_seq),
         SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE,
-        m_alsa_seq, "system", "announce",   // was "annouce" ca 2016-04-03
+        m_alsa_seq, "system", "announce",
         0, m_queue, ppqn, bpm
     );
     m_bus_announce->set_input(true);
@@ -167,77 +176,98 @@ mastermidibus::api_init (int ppqn, midibpm /*bpm*/)
 }
 
 /**
- *  Initiate a poll() on the existing poll descriptors.  This is a
- *  primitive poll, which exits when some data is obtained.
- */
-
-int
-mastermidibus::api_poll_for_midi ()
-{
-    for (;;)
-    {
-        if (m_inbus_array.poll_for_midi())
-            return 1;
-
-        millisleep(1);
-        return 0;
-    }
-}
-
-/**
- *  Test the ALSA sequencer to see if any more input is pending.
+ *  Grab a MIDI event.  This function ssumes that [api_]poll_for_midi() has
+ *  been called to "prime the pump".
  *
- * \threadunsafe
- *      Why is this version not protected by a mutex?  The seq_alsamidi and
- *      seq_rtmidi versions are protected by one!
- */
-
-bool
-mastermidibus::api_is_more_input ()
-{
-    return m_inbus_array.poll_for_midi();
-}
-
-/**
- *  Grab a MIDI event.
+ * \param in
+ *      Provides the destination point for the event to be filled.
  *
- * \threadsafe
+ * \return
+ *      Returns true if there was no error and an event was obtained.
  */
 
 bool
 mastermidibus::api_get_midi_event (event * in)
 {
     bool result = false;
-    PmEvent event;
     int count = m_inbus_array.count();
     for (int i = 0; i < count; ++i)
     {
         midibus * m = m_inbus_array.bus(i);
-        if (m->poll_for_midi())
+        if (m->m_inputing)
         {
-            int /*PmError*/ err = Pm_Read(m->m_pms, &event, 1);
-            if (err < 0)
-                printf("Pm_Read: %s\n", Pm_GetErrorText((PmError) err));
+            PmEvent pme;
+            PmInternal * midi = (PmInternal *) m->m_pms;
+            PmError err = Pm_Dequeue(midi->queue, &pme);
+            if (err == pmBufferOverflow)        /* ignore data retrieved    */
+            {
+                result = false; /* pm_errmsg(pmBufferOverflow, deviceid);   */
+            }
+            else if (err == 0)                  /* empty queue              */
+            {
+                result = false;
+            }
+            else
+            {
+                /*
+                 * We don't need to do this.  The perform input loop
+                 * sets the timestamp.  Let's hope that loop can keep up!
+                 *
+                 * midipulse ts = midipulse(Pt_Time_To_Pulses(pme.timestamp));
+                 * in->set_timestamp(ts);
+                 */
 
-            if (m->m_inputing)
+                in->set_status_keep_channel(Pm_MessageStatus(pme.message));
+                in->set_data
+                (
+                    Pm_MessageData1(pme.message), Pm_MessageData2(pme.message)
+                );
+                if (in->is_note_off_recorded())
+                {
+                    midibyte channel = Pm_MessageStatus(pme.message) &
+                        EVENT_GET_CHAN_MASK;
+
+                    midibyte status = EVENT_NOTE_OFF | channel;
+                    in->set_status_keep_channel(status);
+                }
                 result = true;
+            }
         }
     }
     if (! result)
         return false;
 
-    in->set_status(Pm_MessageStatus(event.message));
-    in->set_sysex_size(3);
-    in->set_data(Pm_MessageData1(event.message), Pm_MessageData2(event.message));
+    /*
+     * Some keyboards send Note On with velocity 0 for Note Off.  The event
+     * class already has this check available.
+     *
+     * if (in->get_status() == EVENT_NOTE_ON && in->get_note_velocity() == 0x00)
+     */
 
-    /* some keyboards send Note On with velocity 0 for Note Off */
-
-    if (in->get_status() == EVENT_NOTE_ON && in->get_note_velocity() == 0x00)
+    if (in->is_note_off_recorded())
         in->set_status(EVENT_NOTE_OFF);
 
-    // Why no "sysex = false" here, like in Linux version?
+    return true;                        /* Why no "sysex = false"?  */
+}
 
-    return true;
+/**
+ *  Not yet implemented.
+ */
+
+void
+mastermidibus::api_set_ppqn (int /*ppqn*/)
+{
+    // TODO
+}
+
+/**
+ *  Not yet implemented.
+ */
+
+void
+mastermidibus::api_set_beats_per_minute (midibpm /*bpm*/)
+{
+    // TODO
 }
 
 }           // namespace seq64

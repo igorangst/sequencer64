@@ -6,7 +6,7 @@
  * \library       sequencer64 application
  * \author        Gary P. Scavone; severe refactoring by Chris Ahlstrom
  * \date          2016-11-14
- * \updates       2018-01-26
+ * \updates       2018-05-01
  * \license       See the rtexmidi.lic file.  Too big for a header file.
  *
  *  Written primarily by Alexander Svetalkin, with updates for delta time by
@@ -26,7 +26,8 @@
  *  16 output ports) to which other applications can connect.  The real/normal
  *  mode, via a midi_alsa_info object, determines the list of existing ALSA
  *  ports in the system, and then Sequencer64 ports are created (via the
- *  midibus) that are local, but connect to these "destination" system ports.
+ *  midibus) that are local, but connected to these "destination" system
+ *  ports.
  *
  *  In JACK, we can do something similar.  Use the manual/virtual mode to
  *  allow Sequencer64 (seq64) to be connected manually via something like
@@ -107,6 +108,9 @@
  *  their sample offsets. JACK will not sort the events for you, and will
  *  refuse to store out-of-order events.
  *
+ *  In sample code, the sample offset ranges from 0 to nframes, where nframes
+ *  is a parameter passed to the callback.
+ *
  *  jack_ringbuffer_read() reads data from the ring-buffer and advances the data
  *  pointer.  The first parameter is the pointer to the ring-buffer.  The second
  *  parameter is the destination for the data that is read from the ring-buffer.
@@ -142,6 +146,7 @@
 #include <jack/ringbuffer.h>
 
 #include "calculations.hpp"             /* seq64::extract_port_name()       */
+#include "easy_macros.hpp"              /* C++ version of easy macros       */
 #include "event.hpp"                    /* seq64::event from main library   */
 #include "jack_assistant.hpp"           /* seq64::jack_status_pair_t        */
 #include "midibus_rm.hpp"               /* seq64::midibus for rtmidi        */
@@ -206,11 +211,11 @@ int
 jack_process_rtmidi_input (jack_nframes_t nframes, void * arg)
 {
     midi_jack_data * jackdata = reinterpret_cast<midi_jack_data *>(arg);
-    rtmidi_in_data * rtindata = jackdata->m_jack_rtmidiin;
 
 #ifdef SEQ64_USE_DEBUG_OUTPUT
+    rtmidi_in_data * rtindata = jackdata->m_jack_rtmidiin;
     static bool s_null_detected = false;
-    if (is_nullptr(jackdata->m_jack_port))     /* is port created?        */
+    if (is_nullptr(jackdata->m_jack_port))          /* is port created?     */
     {
         if (! s_null_detected)
         {
@@ -232,21 +237,23 @@ jack_process_rtmidi_input (jack_nframes_t nframes, void * arg)
 
     /*
      * Since this is an input port, buff is the area that contains data from
-     * the "remote" (i.e. outside our application) port.
+     * the "remote" (i.e. outside our application) port.  We do not check
+     * midi_jack_data::m_jack_port here, it should be good, or else.
      */
 
     void * buff = jack_port_get_buffer(jackdata->m_jack_port, nframes);
     if (not_nullptr(buff))
     {
+        rtmidi_in_data * rtindata = jackdata->m_jack_rtmidiin;
         jack_midi_event_t jmevent;
         jack_time_t jtime;
         int evcount = jack_midi_get_event_count(buff);
         for (int j = 0; j < evcount; ++j)
         {
-            midi_message message;
             int rc = jack_midi_event_get(&jmevent, buff, j);
             if (rc == 0)
             {
+                midi_message message;
                 int eventsize = int(jmevent.size);
                 for (int i = 0; i < eventsize; ++i)
                     message.push(jmevent.buffer[i]);
@@ -273,9 +280,7 @@ jack_process_rtmidi_input (jack_nframes_t nframes, void * arg)
                         callback(message, rtindata->user_data());
                     }
                     else
-                    {
                         (void) rtindata->queue().add(message);
-                    }
                 }
             }
             else
@@ -333,6 +338,7 @@ jack_process_rtmidi_input (jack_nframes_t nframes, void * arg)
 int
 jack_process_rtmidi_output (jack_nframes_t nframes, void * arg)
 {
+    static size_t s_offset = 0;
     midi_jack_data * jackdata = reinterpret_cast<midi_jack_data *>(arg);
 
 #ifdef SEQ64_USE_DEBUG_OUTPUT
@@ -357,7 +363,6 @@ jack_process_rtmidi_output (jack_nframes_t nframes, void * arg)
     }
 #endif  // SEQ64_USE_DEBUG_OUTPUT
 
-    static size_t soffset = 0;
     void * buf = jack_port_get_buffer(jackdata->m_jack_port, nframes);
     jack_midi_clear_buffer(buf);                    /* no nullptr test      */
 
@@ -371,6 +376,8 @@ jack_process_rtmidi_output (jack_nframes_t nframes, void * arg)
 
     /*
      * A for-loop over the number of nframes?  See discussion above.
+     * Why are we reading here?  That's where our app has dumped the next set
+     * of MIDI events to output.
      */
 
     while (jack_ringbuffer_read_space(jackdata->m_jack_buffsize) > 0)
@@ -380,7 +387,14 @@ jack_process_rtmidi_output (jack_nframes_t nframes, void * arg)
         (
             jackdata->m_jack_buffsize, (char *) &space, sizeof space
         );
-        jack_midi_data_t * md = jack_midi_event_reserve(buf, soffset, space);
+
+        /*
+         * s_offset is always zero. Using nframes instead of s_offset = 0
+         * causes notes not to be played.  Probably because this is a write
+         * operation?
+         */
+
+        jack_midi_data_t * md = jack_midi_event_reserve(buf, s_offset, space);
         if (not_nullptr(md))
         {
             char * mididata = reinterpret_cast<char *>(md);
@@ -905,7 +919,7 @@ midi_jack::api_clock (midipulse tick)
  *          buffer[0] = rt_msg;
  *
  *  We generally need to send the (realtime) MIDI clock messages Start, Stop,
- *  and  Continue if the JACK transport state changed.
+ *  and Continue if the JACK transport state changed.
  *
  * \param evbyte
  *      Provides one of the following values (though any byte can be sent):
@@ -1357,8 +1371,6 @@ midi_in_jack::midi_in_jack (midibus & parentbus, midi_info & masterinfo)
 
 /**
  *  Checks the rtmidi_in_data queue for the number of items in the queue.
- *
- *  WE MAY NEED LOCKING.
  *
  * \return
  *      Returns the value of rtindata->queue().count(), unless the caller is

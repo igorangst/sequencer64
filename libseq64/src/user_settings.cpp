@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2015-09-23
- * \updates       2018-02-07
+ * \updates       2018-05-27
  * \license       GNU GPLv2 or above
  *
  *  Note that this module also sets the remaining legacy global variables, so
@@ -102,7 +102,9 @@
 #include "settings.hpp"                 /* seq64::rc()                  */
 #include "user_settings.hpp"            /* seq64::user_settings         */
 
+#define SEQ64_WINDOW_SCALE_MIN          0.5f
 #define SEQ64_WINDOW_SCALE_DEFAULT      1.0f
+#define SEQ64_WINDOW_SCALE_MAX          3.0f
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -153,12 +155,9 @@ user_settings::user_settings ()
     m_inverse_colors            (false),
     m_window_redraw_rate_ms     (c_redraw_ms),  // 40 ms or 20 ms; 25 ms
     m_use_more_icons            (false),
-
-#if defined SEQ64_MULTI_MAINWID
     m_mainwid_block_rows        (1),
     m_mainwid_block_cols        (1),
     m_mainwid_block_independent (false),
-#endif
 
     /*
      * The members that follow are not yet part of the .usr file.
@@ -199,6 +198,8 @@ user_settings::user_settings ()
     m_seqarea_seq_y             (0),
     m_mainwid_x                 (0),
     m_mainwid_y                 (0),
+    m_mainwnd_x                 (780),          // constant
+    m_mainwnd_y                 (412),          // constant
     m_save_user_config          (false),
 
     /*
@@ -208,10 +209,23 @@ user_settings::user_settings ()
     mc_min_zoom                 (SEQ64_MINIMUM_ZOOM),
     mc_max_zoom                 (SEQ64_MAXIMUM_ZOOM),
     mc_baseline_ppqn            (SEQ64_DEFAULT_PPQN),
+
+    /*
+     * Back to non-constant values.
+     */
+
     m_user_option_daemonize     (false),
+    m_user_use_logfile          (false),
     m_user_option_logfile       (),
     m_work_around_play_image    (false),
-    m_work_around_transpose_image (false)
+    m_work_around_transpose_image (false),
+
+    /*
+     * [user-ui-tweaks]
+     */
+
+    m_user_ui_key_height        (12)
+
 {
     // Empty body; it's no use to call normalize() here, see set_defaults().
 }
@@ -248,12 +262,9 @@ user_settings::user_settings (const user_settings & rhs)
     m_inverse_colors            (rhs.m_inverse_colors),
     m_window_redraw_rate_ms     (rhs.m_window_redraw_rate_ms),
     m_use_more_icons            (rhs.m_use_more_icons),
-
-#if defined SEQ64_MULTI_MAINWID
     m_mainwid_block_rows        (rhs.m_mainwid_block_rows),
     m_mainwid_block_cols        (rhs.m_mainwid_block_cols),
     m_mainwid_block_independent (rhs.m_mainwid_block_independent),
-#endif
 
     /*
      * The members that follow are not yet part of the .usr file.
@@ -294,6 +305,8 @@ user_settings::user_settings (const user_settings & rhs)
     m_seqarea_seq_y             (rhs.m_seqarea_seq_y),
     m_mainwid_x                 (rhs.m_mainwid_x),
     m_mainwid_y                 (rhs.m_mainwid_y),
+    m_mainwnd_x                 (rhs.m_mainwnd_x),
+    m_mainwnd_y                 (rhs.m_mainwnd_y),
     m_save_user_config          (rhs.m_save_user_config),
 
     /*
@@ -303,10 +316,29 @@ user_settings::user_settings (const user_settings & rhs)
     mc_min_zoom                 (rhs.mc_min_zoom),
     mc_max_zoom                 (rhs.mc_max_zoom),
     mc_baseline_ppqn            (SEQ64_DEFAULT_PPQN),
+
+    /*
+     * Back to non-constant values.
+
     m_user_option_daemonize     (false),
+    m_user_use_logfile          (false),
     m_user_option_logfile       (),
     m_work_around_play_image    (false),
     m_work_around_transpose_image (false)
+    m_user_ui_key_height        (12)
+     */
+
+    m_user_option_daemonize     (rhs.m_user_option_daemonize),
+    m_user_use_logfile          (rhs.m_user_use_logfile),
+    m_user_option_logfile       (rhs.m_user_option_logfile),
+    m_work_around_play_image    (rhs.m_work_around_play_image),
+    m_work_around_transpose_image (rhs.m_work_around_transpose_image),
+
+    /*
+     * [user-ui-tweaks]
+     */
+
+    m_user_ui_key_height        (rhs.m_user_ui_key_height)
 {
     // Empty body; no need to call normalize() here.
 }
@@ -346,12 +378,9 @@ user_settings::operator = (const user_settings & rhs)
         m_inverse_colors            = rhs.m_inverse_colors;
         m_window_redraw_rate_ms     = rhs.m_window_redraw_rate_ms;
         m_use_more_icons            = rhs.m_use_more_icons;
-
-#if defined SEQ64_MULTI_MAINWID
         m_mainwid_block_rows        = rhs.m_mainwid_block_rows;
         m_mainwid_block_cols        = rhs.m_mainwid_block_cols;
         m_mainwid_block_independent = rhs.m_mainwid_block_independent;
-#endif
 
         /*
          * The members that follow are not yet part of the .usr file.
@@ -391,6 +420,8 @@ user_settings::operator = (const user_settings & rhs)
          *  m_seqarea_seq_y             = rhs.m_seqarea_seq_y;
          *  m_mainwid_x                 = rhs.m_mainwid_x;
          *  m_mainwid_y                 = rhs.m_mainwid_y;
+         *  m_mainwnd_x                 = rhs.m_mainwnd_x;
+         *  m_mainwnd_y                 = rhs.m_mainwnd_y;
          */
 
         m_save_user_config = rhs.m_save_user_config;
@@ -405,9 +436,16 @@ user_settings::operator = (const user_settings & rhs)
          */
 
         m_user_option_daemonize = rhs.m_user_option_daemonize;
+        m_user_use_logfile = rhs.m_user_use_logfile;
         m_user_option_logfile = rhs.m_user_option_logfile;
         m_work_around_play_image = rhs.m_work_around_play_image;
         m_work_around_transpose_image = rhs.m_work_around_transpose_image;
+
+        /*
+         * [user-ui-tweaks]
+         */
+
+        m_user_ui_key_height = rhs.m_user_ui_key_height;
     }
     return *this;
 }
@@ -433,7 +471,7 @@ user_settings::set_defaults ()
     m_mainwnd_rows = SEQ64_DEFAULT_MAINWND_ROWS;    // range: 4-8
     m_mainwnd_cols = SEQ64_DEFAULT_MAINWND_COLUMNS; // range: 8-8
     m_max_sets = SEQ64_DEFAULT_SET_MAX;     // range: 32-64
-    m_window_scale = SEQ64_WINDOW_SCALE_DEFAULT; // range: 1.0 to 3.0
+    m_window_scale = SEQ64_WINDOW_SCALE_DEFAULT; // range: 0.5 to 3.0
     m_mainwid_border = 0;                   // range: 0-3, try 2 or 3
     m_mainwid_spacing = 2;                  // range: 2-6, try 4 or 6
     m_control_height = 0;                   // range: 0-4?
@@ -451,13 +489,9 @@ user_settings::set_defaults ()
     m_inverse_colors = false;
     m_window_redraw_rate_ms = c_redraw_ms;
     m_use_more_icons = false;
-
-#if defined SEQ64_MULTI_MAINWID
     m_mainwid_block_rows = 1;
     m_mainwid_block_cols = 1;
     m_mainwid_block_independent = false;
-#endif
-
     m_text_x =  6;                          // range: 6-6
     m_text_y = 12;                          // range: 12-12
     m_seqchars_x = 15;                      // range: 15-15
@@ -483,9 +517,11 @@ user_settings::set_defaults ()
      */
 
     m_user_option_daemonize = false;
+    m_user_use_logfile = false;
     m_user_option_logfile.clear();
     m_work_around_play_image = false;
     m_work_around_transpose_image = false;
+    m_user_ui_key_height = 12;
     normalize();                            // recalculate derived values
 }
 
@@ -529,14 +565,44 @@ user_settings::normalize ()
     m_seqarea_seq_y = m_text_y * 2;
     m_mainwid_x =
     (
-        2 + (m_seqarea_x + m_mainwid_spacing) * m_mainwnd_cols -
-            m_mainwid_spacing + m_mainwid_border * 2
+        (m_seqarea_x + m_mainwid_spacing) * m_mainwnd_cols - m_mainwid_spacing +
+            m_mainwid_border * 2
     );
     m_mainwid_y =
     (
         (m_seqarea_y + m_mainwid_spacing) * m_mainwnd_rows +
              m_control_height + m_mainwid_border * 2
     );
+}
+
+/**
+ * \getter m_mainwnd_x
+ */
+
+int
+user_settings::mainwnd_x () const
+{
+    if (block_rows() != 1 || block_columns() != 1)
+        return 0;
+    else
+        return scale_size(m_mainwnd_x);
+}
+
+/**
+ * \getter m_mainwnd_y
+ *      Scaled only if window scaling is less than 1.0.
+ */
+
+int
+user_settings::mainwnd_y () const
+{
+    if (block_rows() != 1 || block_columns() != 1)
+        return 0;
+    else
+    {
+        return m_window_scale > 1.0f ?
+            m_mainwnd_y : int(scale_size(m_mainwnd_y)) ;
+    }
 }
 
 /**
@@ -656,7 +722,7 @@ user_settings::set_instrument_controllers
 void
 user_settings::window_scale (float winscale)
 {
-    if (winscale >= 0.75f && winscale <= 3.0f)
+    if (winscale >= SEQ64_WINDOW_SCALE_MIN && winscale <= SEQ64_WINDOW_SCALE_MAX)
     {
         m_window_scale = winscale;
         normalize();
@@ -1118,8 +1184,6 @@ user_settings::option_logfile () const
     return result;
 }
 
-#if defined SEQ64_MULTI_MAINWID
-
 /**
  * \setter m_mainwid_block_rows
  */
@@ -1127,8 +1191,13 @@ user_settings::option_logfile () const
 void
 user_settings::block_rows (int count)
 {
+#if defined SEQ64_MAINWID_BLOCK_ROWS_MAX
     if (count > 0 && count <= SEQ64_MAINWID_BLOCK_ROWS_MAX)
         m_mainwid_block_rows = count;
+#else
+    if (count == 1)
+        m_mainwid_block_rows = count;
+#endif
 }
 
 /**
@@ -1138,8 +1207,13 @@ user_settings::block_rows (int count)
 void
 user_settings::block_columns (int count)
 {
+#if defined SEQ64_MAINWID_BLOCK_ROWS_MAX
     if (count > 0 && count <= SEQ64_MAINWID_BLOCK_COLS_MAX)
         m_mainwid_block_cols = count;
+#else
+    if (count == 1)
+        m_mainwid_block_cols = count;
+#endif
 }
 
 /*
@@ -1157,9 +1231,8 @@ user_settings::block_columns (int count)
 int
 user_settings::mainwid_width () const
 {
-    int result = (c_seqarea_x + c_mainwid_spacing) * m_mainwnd_cols -
-        (c_mainwid_spacing + c_mainwid_border * 2) + // MAINWID_WIDTH_FUDGE
-        mainwid_width_fudge() * 2;
+    int result = (m_seqarea_x + m_mainwid_spacing) * m_mainwnd_cols -
+        m_mainwid_spacing + m_mainwid_border * 2 + mainwid_width_fudge() * 2;
 
     return scale_size(result);
 }
@@ -1186,8 +1259,6 @@ user_settings::mainwid_height () const
 
     return scale_size(result);
 }
-
-#endif  // SEQ64_MULTI_MAINWID
 
 /**
  *  Provides a debug dump of basic information to help debug a

@@ -27,7 +27,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-11-24
- * \updates       2017-03-21
+ * \updates       2017-05-12
  * \license       GNU GPLv2 or above
  *
  *  The midibase module is the new base class for the various implementations
@@ -39,6 +39,7 @@
 #include "easy_macros.h"                /* for autoconf header files    */
 #include "mutex.hpp"
 #include "midibus_common.hpp"
+#include "midibyte.hpp"                 /* seq64::midibyte typedef          */
 
 /*
  *  Do not document a namespace; it breaks Doxygen.
@@ -89,7 +90,10 @@ private:
     int m_port_id;
 
     /**
-     *  The type of clock to use.
+     *  The type of clock to use.  The special value e_clock_disabled means
+     *  we will not be using the port, so that a failure in setting up the
+     *  port is not a "fatal error".  (We could have added an "m_outputing"
+     *  boolean as an alternative.)
      */
 
     clock_e m_clock_type;
@@ -361,6 +365,7 @@ public:
 
     /**
      * \setter m_clock_type
+     *      We removed the redundant set_clock_status() function.
      *
      * \param clocktype
      *      The value used to set the clock-type.
@@ -381,12 +386,21 @@ public:
     }
 
     /**
-     * \setter m_clock_type
+     * \getter m_clock_type
      */
 
-    void set_clock_status (clock_e clocktype)
+    bool port_disabled () const
     {
-        m_clock_type = clocktype;
+        return m_clock_type == e_clock_disabled;
+    }
+
+    /**
+     * \getter m_clock_type
+     */
+
+    bool clock_enabled () const
+    {
+        return m_clock_type != e_clock_off && m_clock_type != e_clock_disabled;
     }
 
     /**
@@ -607,7 +621,7 @@ protected:
     virtual void api_stop () = 0;
     virtual void api_clock (midipulse tick) = 0;
 
-};          // class midibase (ALSA version)
+};          // class midibase
 
 /*
  *  Free functions

@@ -6,7 +6,7 @@
  * \library       sequencer64 application
  * \author        Chris Ahlstrom
  * \date          2016-11-14
- * \updates       2017-08-22
+ * \updates       2018-06-02
  * \license       See the rtexmidi.lic file.  Too big.
  *
  *  API information found at:
@@ -56,6 +56,7 @@
  */
 
 #include "calculations.hpp"             /* seq64::tempo_us_from_bpm()       */
+#include "easy_macros.hpp"              /* C++ version of easy macros       */
 #include "event.hpp"                    /* seq64::event and other tokens    */
 #include "midi_alsa_info.hpp"           /* seq64::midi_alsa_info            */
 #include "midibus_common.hpp"           /* from the libseq64 sub-project    */
@@ -337,7 +338,8 @@ midi_alsa_info::api_set_beats_per_minute (midibpm b)
 
 /**
  *  Polls for any ALSA MIDI information using a timeout value of 1000
- *  milliseconds.
+ *  milliseconds.  Identical to seq_alsamidi's mastermidibus ::
+ *  api_poll_for_midi(), which waits 1 millisecond if no input is pending.
  *
  * \return
  *      Returns the result of the call to poll() on the global ALSA poll
@@ -348,10 +350,8 @@ int
 midi_alsa_info::api_poll_for_midi ()
 {
     int result = poll(m_poll_descriptors, m_num_poll_descriptors, 1000);
-
-#ifdef SEQ64_SHOW_API_CALLS_TMI                 /* too much output!     */
-    printf("midi_alsa_info::poll_for_midi() = %d\n", result);
-#endif
+    if (result == 0)
+        millisleep(1);
 
     return result;
 }
@@ -434,7 +434,7 @@ midi_alsa_info::api_port_start (mastermidibus & masterbus, int bus, int port)
             midibus * m = new midibus(masterbus.m_midi_master, bus_slot);
             m->is_virtual_port(false);
             m->is_input_port(false);
-            masterbus.m_outbus_array.add(m, e_clock_off);
+            masterbus.m_outbus_array.add(m, e_clock_off);   /* disabled? */
         }
         if (CAP_FULL_READ(cap) && ALSA_CLIENT_CHECK(pinfo)) /* inputs */
         {

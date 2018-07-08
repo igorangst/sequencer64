@@ -25,7 +25,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2018-01-01
- * \updates       2018-03-14
+ * \updates       2018-04-08
  * \license       GNU GPLv2 or above
  *
  *  Note that, as of version 0.9.11, the z and Z keys, when focus is on the
@@ -35,9 +35,18 @@
 #include "perform.hpp"
 #include "qperfeditframe.hpp"
 #include "qt5_helpers.hpp"              /* seq64::qt_set_icon()             */
-#include "forms/qperfeditframe.ui.h"
 
-#ifdef USE_LOCAL_QT_ICONS
+/*
+ *  Qt's uic application allows a different output file-name, but not sure
+ *  if qmake can change the file-name.
+ */
+
+#ifdef SEQ64_QMAKE_RULES
+#include "forms/ui_qperfeditframe.h"
+#else
+#include "forms/qperfeditframe.ui.h"
+#endif
+
 #include "pixmaps/collapse.xpm"
 #include "pixmaps/copy.xpm"
 #include "pixmaps/expand.xpm"
@@ -46,7 +55,6 @@
 #include "pixmaps/undo.xpm"
 #include "pixmaps/zoom_in.xpm"
 #include "pixmaps/zoom_out.xpm"
-#endif
 
 namespace seq64
 {
@@ -76,7 +84,7 @@ qperfeditframe::qperfeditframe (seq64::perform & p, QWidget * parent)
 
     // fill options for grid snap combo box and set default
 
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 6; ++i)
     {
         QString combo_text = "1/" + QString::number(pow(2, i));
         ui->cmbGridSnap->insertItem(i, combo_text);
@@ -145,6 +153,8 @@ qperfeditframe::qperfeditframe (seq64::perform & p, QWidget * parent)
 qperfeditframe::~qperfeditframe ()
 {
     delete ui;
+    if (not_nullptr(m_palette))     // valgrind fix?
+        delete m_palette;
 }
 
 /**
@@ -186,7 +196,7 @@ qperfeditframe::updateGridSnap (int snapIndex)
 void
 qperfeditframe::set_snap (int a_snap)
 {
-    char b[10];
+    char b[16];
     snprintf(b, sizeof(b), "1/%d", a_snap);
     ui->cmbGridSnap->setCurrentText(b);
     m_snap = a_snap;

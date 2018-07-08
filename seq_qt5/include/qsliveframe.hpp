@@ -27,7 +27,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2018-01-01
- * \updates       2018-03-11
+ * \updates       2018-04-15
  * \license       GNU GPLv2 or above
  *
  */
@@ -68,21 +68,24 @@ public:
     explicit qsliveframe (perform & perf, QWidget * parent = 0 );
     ~qsliveframe ();
 
+/*
     void redraw ();              // redraw frame contents
+    */
     void setBank (int newBank);  // set bank (screen-set) of sequences displayed
+    void setBank ();             // bank number retrieved from perform
 
 protected:
 
     // override painting event to draw on the frame
 
-    void paintEvent (QPaintEvent *event);
+    void paintEvent (QPaintEvent * event);
 
     // override mouse events for interaction
 
     void mousePressEvent (QMouseEvent * event);
     void mouseReleaseEvent (QMouseEvent * event);
     void mouseMoveEvent (QMouseEvent * event);
-    void mouseDoubleClickEvent (QMouseEvent *);
+    void mouseDoubleClickEvent (QMouseEvent * event);
 
     // override keyboard events for interaction
 
@@ -103,6 +106,7 @@ private:
 
 private:
 
+    void calculate_base_sizes (int seq, int & basex, int & basey);
     void drawSequence (int seq);
     void drawAllSequences ();
 
@@ -113,22 +117,16 @@ private:
 
     // converts the XY coordinates of a click into a seq ID
 
-    int seqIDFromClickXY(int click_x, int click_y);
-
-    /* set/unset sequences with key presses */
-
-    void sequence_key (int seq);
+    int seqIDFromClickXY (int click_x, int click_y);
 
     Ui::qsliveframe * ui;
     seq64::perform & mPerf;
     seq64::sequence m_moving_seq;
     seq64::sequence m_seq_clipboard;
-
     QMenu * mPopup;
     QTimer * mRedrawTimer;
     QMessageBox * mMsgBoxNewSeqCheck;
     QFont mFont;
-
     int m_bank_id;                  // same as the screen-set number
     int thumbW;
     int thumbH;                     // thumbnail dimensions
@@ -136,8 +134,7 @@ private:
     int previewH;                   // internal seq MIDI preview dimensions
     int lastMetro;                  // beat pulsing
     int alpha;
-
-    int m_curr_seq;                // mouse interaction
+    int m_curr_seq;                 // mouse interaction
     int mOldSeq;
     bool mButtonDown;
     bool mMoving;                   // are we moving bewteen slots

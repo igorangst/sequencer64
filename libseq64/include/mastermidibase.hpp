@@ -27,7 +27,7 @@
  * \library       sequencer64 application
  * \author        Seq24 team; modifications by Chris Ahlstrom
  * \date          2016-11-23
- * \updates       2017-12-18
+ * \updates       2018-06-02
  * \license       GNU GPLv2 or above
  *
  *  The mastermidibase module is the base-class version of the mastermidibus
@@ -167,7 +167,7 @@ public:
     mastermidibase
     (
         int ppqn    = SEQ64_USE_DEFAULT_PPQN,
-        midibpm bpm =  SEQ64_DEFAULT_BPM         /* c_beats_per_minute */
+        midibpm bpm = SEQ64_DEFAULT_BPM             /* c_beats_per_minute */
     );
     virtual ~mastermidibase ();
 
@@ -279,6 +279,8 @@ public:
 
     /**
      * \getter m_seq
+     *      Used only in perform::input_func() when not filtering MIDI input
+     *      by channel.
      */
 
     sequence * get_sequence () const
@@ -300,7 +302,6 @@ public:
     void panic ();                                          /* kepler34 func  */
     void set_sequence_input (bool state, sequence * seq);
     void dump_midi_input (event in);                        /* seq32 function */
-    bool initialize_buses ();
 
     std::string get_midi_out_bus_name (bussbyte bus);
     std::string get_midi_in_bus_name (bussbyte bus);
@@ -320,7 +321,13 @@ public:
 
 protected:
 
-    void port_settings
+    /**
+     * \setter m_master_clocks, m_master_inputs.
+     *      Used in the perform class to pass the settings read from the "rc"
+     *      file to here.  There is an converse function defined below.
+     */
+
+    void set_port_statuses
     (
         const std::vector<clock_e> & clocks,
         const std::vector<bool> & inputs
@@ -330,10 +337,26 @@ protected:
         m_master_inputs = inputs;
     }
 
+    /**
+     * \getter m_master_clocks, m_master_inputs.
+     *      Used in the perform class to pass the settings read from the "rc"
+     *      file to here.  There is an converse function defined above.
+     */
+
+    void get_port_statuses
+    (
+        std::vector<clock_e> & clocks,
+        std::vector<bool> & inputs
+    )
+    {
+        clocks = m_master_clocks;
+        inputs = m_master_inputs;
+    }
+
     clock_e clock (int bus)
     {
         return bus < int(m_master_clocks.size()) ?
-            m_master_clocks[bus] : e_clock_off ;
+            m_master_clocks[bus] : e_clock_off ;    /* e_clock_disable */
     }
 
     bool input (int bus)
@@ -411,7 +434,7 @@ protected:
 
     virtual void api_set_beats_per_minute (midibpm /* bpm */)
     {
-        // no code for base or portmidi
+        // no code for base
     }
 
     /**
@@ -437,9 +460,8 @@ protected:
         // no code for portmidi
     }
 
-    virtual bool api_is_more_input () = 0;
     virtual bool api_get_midi_event (event * inev) = 0;
-    virtual int api_poll_for_midi () = 0;
+    virtual int api_poll_for_midi ();
 
 /*
  *  So far, there is no need for these API-specific functions.
