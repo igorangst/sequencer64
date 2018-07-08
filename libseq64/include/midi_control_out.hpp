@@ -98,7 +98,9 @@ public:
         action_snap1_restore = 10,
         action_snap2_store   = 11,
         action_snap2_restore = 12,
-        action_max           = 13
+        action_learn_on      = 13,
+        action_learn_off     = 14,
+        action_max           = 15
     } action;
 
 private:
@@ -134,7 +136,19 @@ private:
      *  the configuration file).
      */
     bool  m_event_active[action_max];
-    
+
+    /** 
+     *  Current screen set offset. Since the sequences dispatch the
+     *  output messages, and sequences don't know shit about
+     *  screen-sets, we need to do the math in this class in order to
+     *  send screen-set relative events out to external
+     *  controllers. For now, the size of the screen-set is hard-wired
+     *  to 32.
+     * 
+     *  TODO: Make this behavior configurable via optionsfile
+     *  
+     */
+    int m_screenset_offset;
 
 public:
 
@@ -143,6 +157,17 @@ public:
     void set_master_bus(mastermidibus* mmbus)
     {
         m_master_bus = mmbus;
+    }
+
+    /**
+     *  Set the current screen-set offset
+     * 
+     * \param offset
+     *      New screen-set offset
+     */
+    void set_screenset_offset(int offset)
+    {
+        m_screenset_offset = offset;
     }
   
     /** 
@@ -153,8 +178,17 @@ public:
      *
      * \param what
      *      The status action of the sequence 
+     *
+     * \param flush
+     *      Flush MIDI buffer after sending (default true)
      */
-    void send_seq_event(int seq, seq_action what);
+    void send_seq_event(int seq, seq_action what, bool flush=false);
+
+    /**
+     *  Clears all visible sequences by sending "delete" messages for all
+     *  sequences ranging from 0 to 31.
+     */
+    void clear_sequences();
 
     /** 
      * Getter for sequence action events.

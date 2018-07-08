@@ -2496,6 +2496,31 @@ perform::set_screenset (int ss)
 #endif
         m_screenset_offset = screenset_offset(ss);
         unset_queued_replace();                 /* clear this new feature   */
+
+#ifdef SEQ64_MIDI_CTRL_OUT
+
+        // tell control output about new screen-set
+        m_midi_ctrl_out->set_screenset_offset(m_screenset_offset);
+
+        for (int i=0; i<32; ++i)
+        {
+            int s = m_screenset_offset + i;
+            sequence *seq = get_sequence(s);
+            if (not_nullptr(seq))
+            {
+                if (seq->get_playing())
+                {
+                    m_midi_ctrl_out->send_seq_event(s, midi_control_out::seq_action_arm, false);
+                } else {
+                    m_midi_ctrl_out->send_seq_event(s, midi_control_out::seq_action_mute, false);
+                }
+            } else {
+                m_midi_ctrl_out->send_seq_event(s, midi_control_out::seq_action_delete, false);
+            }
+        }
+        m_master_bus->flush();
+#endif
+        
     }
     return m_screenset;
 }

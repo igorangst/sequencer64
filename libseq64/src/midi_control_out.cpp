@@ -50,7 +50,8 @@ namespace seq64
 midi_control_out::midi_control_out ()
     :
     m_master_bus(nullptr),
-    m_buss(15)
+    m_buss(15),
+    m_screenset_offset(0)
 {
     event dummy_e;
     for (int i=0; i<32; ++i)
@@ -95,12 +96,14 @@ std::string seq_action_to_str(midi_control_out::seq_action a)
  * the current screen set. 
  *
  */
-void midi_control_out::send_seq_event(int seq, seq_action what)
+void midi_control_out::send_seq_event(int seq, seq_action what, bool flush)
 {
-    // printf("[ctrl-out] seq #%i %s\n", seq, seq_action_to_str(what).c_str());
+    // adjust sequence number relative to current screen-set
+    seq = seq - m_screenset_offset;
   
     if (seq < 0 || seq >= 32)
     {
+        // outside current screen-set -> ignore
         return;
     } else {
         if (!m_seq_active[seq][what])
@@ -111,8 +114,27 @@ void midi_control_out::send_seq_event(int seq, seq_action what)
         if (not_nullptr(m_master_bus))
         {
             m_master_bus->play(m_buss, &ev, ev.get_channel());
-            m_master_bus->flush();
+            if (flush) {
+                m_master_bus->flush();
+            }
         }
+    }
+}
+
+/**
+ *  Clears all visible sequences by sending "delete" messages for all
+ *  sequences ranging from 0 to 31.
+ */
+void midi_control_out::clear_sequences()
+{
+    printf ("CLEAR\n");
+    for (int seq=0; seq<32; ++seq)
+    {
+        send_seq_event(seq, midi_control_out::seq_action_delete, false);
+    }
+    if (not_nullptr(m_master_bus))
+    {
+        m_master_bus->flush();
     }
 }
 
