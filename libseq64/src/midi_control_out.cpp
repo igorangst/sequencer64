@@ -234,6 +234,7 @@ void midi_control_out::set_event(action what, event& ev)
     if (what < action_max)
     {
         m_event[what] = ev;
+        m_event_active[what] = true;
     }
 }
 
