@@ -1250,19 +1250,14 @@ optionsfile::write (const perform & p)
         file << seq;
         for (int a=0; a<midi_control_out::seq_action_max; ++a)
         {
-            if (p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::seq_action)a))
-            {
-                event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
-                midibyte d0, d1;                
-                ev.get_data(d0, d1);
-                file << " [1 "
-                    << (unsigned)ev.get_channel() << " "
-                    << (unsigned)ev.get_status() << " "
-                    << (unsigned)d0 << " "
-                    << (unsigned)d1 << "]";
-            } else {
-                file << " [0 0 0 0 0]";
-            }               
+            event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
+            midibyte d0, d1;
+            ev.get_data(d0, d1);
+            file << (unsigned)p.midi_ctrol_out->seq_event_is_active(seq, (midi_ctrol_out::seq_action)a) << " "
+                 << (unsigned)ev.get_channel() << " "
+                 << (unsigned)ev.get_status() << " "
+                 << (unsigned)d0 << " "
+                 << (unsigned)d1 << "]";
         }
         file << "\n";
     }
