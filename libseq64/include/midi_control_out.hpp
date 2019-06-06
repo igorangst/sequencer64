@@ -106,6 +106,12 @@ public:
 private:
 
     /**
+     * Number of sequences for which output events are defined. This is usually
+     * the value read in from the options file.
+     */
+    int m_number_seqs;
+
+    /**
      *  Provides the MIDI output master bus.
      */
     mastermidibus* m_master_bus;
@@ -117,12 +123,14 @@ private:
 
     /**
      *  Provides the events to be sent out for sequence status changes.
+     *  FIXME
      */
     event m_seq_event[32][seq_action_max];
 
     /**
      *  True if the respective sequence action is active (i.e. has
      *  been set in the configuration file).
+     *  FIXME
      */
     bool  m_seq_active[32][seq_action_max];
 
@@ -152,7 +160,7 @@ private:
 
 public:
 
-    midi_control_out();
+    midi_control_out(int number_seqs = 32);
 
     void set_master_bus(mastermidibus* mmbus)
     {

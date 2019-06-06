@@ -404,7 +404,7 @@ optionsfile::parse (perform & p)
         if (!next_data_line(file))
         {
             return error_message("midi-control-out", "no data");
-        }       
+        }
         int a[5], b[5], c[5], d[5];
         int sequence = 0;
         sscanf(
@@ -1273,7 +1273,7 @@ optionsfile::write (const perform & p)
             event ev = p.m_midi_ctrl_out->get_seq_event(seq, (midi_control_out::seq_action)a);
             midibyte d0, d1;
             ev.get_data(d0, d1);
-            file << (unsigned)p.midi_ctrol_out->seq_event_is_active(seq, (midi_ctrol_out::seq_action)a) << " "
+            file << " [" << (unsigned)p.m_midi_ctrl_out->seq_event_is_active(seq, (midi_control_out::seq_action)a) << " "
                  << (unsigned)ev.get_channel() << " "
                  << (unsigned)ev.get_status() << " "
                  << (unsigned)d0 << " "

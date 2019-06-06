@@ -47,15 +47,16 @@ namespace seq64
 
 
 
-midi_control_out::midi_control_out ()
+midi_control_out::midi_control_out (int number_seqs)
     :
+    m_number_seqs(number_seqs),
     m_master_bus(nullptr),
     m_buss(15),
     m_screenset_offset(0)
 {
     event dummy_e;
-    for (int i=0; i<32; ++i)
-    {   
+    for (int i=0; i<m_number_seqs; ++i)
+    {
         for (int a=0; a<seq_action_max; ++a)
         {
             m_seq_event[i][a] = dummy_e;
@@ -90,8 +91,6 @@ std::string seq_action_to_str(midi_control_out::seq_action a)
  * we drop the event. This requires that in the perform class, we do a
  * "repaint" each time the screen set is changed.
  *
- * TODO: For now, the size of the screenset is fixed to 32 in this function.
- *
  * Also, maybe consider adding an option to the config file, making
  * this behavior optional: So either absolute sequence actions (let
  * the receiver do the math...), or sending events relative (modulo)
@@ -103,7 +102,7 @@ void midi_control_out::send_seq_event(int seq, seq_action what, bool flush)
     // adjust sequence number relative to current screen-set
     seq = seq - m_screenset_offset;
   
-    if (seq < 0 || seq >= 32)
+    if (seq < 0 || seq >= m_number_seqs)
     {
         // outside current screen-set -> ignore
         return;
@@ -130,7 +129,7 @@ void midi_control_out::send_seq_event(int seq, seq_action what, bool flush)
 void midi_control_out::clear_sequences()
 {
     printf ("CLEAR\n");
-    for (int seq=0; seq<32; ++seq)
+    for (int seq=0; seq<m_number_seqs; ++seq)
     {
         send_seq_event(seq, midi_control_out::seq_action_delete, false);
     }
@@ -142,15 +141,15 @@ void midi_control_out::clear_sequences()
 
 event midi_control_out::get_seq_event(int seq, seq_action what) const
 {
-    if (seq < 0 || seq >= 32)
+    if (seq < 0 || seq >= m_number_seqs)
     {
         event dummy_event;
         return dummy_event;
     } else {
         return m_seq_event[seq][what];
     }
-}   
-    
+}
+
 void midi_control_out::set_seq_event(int seq, seq_action what, event& ev)
 {
     // printf("[set_seq_event] %i %i\n", seq, (int)what);
@@ -167,8 +166,7 @@ void midi_control_out::set_seq_event(int seq, seq_action what, int *eva)
 
     // printf("[set_seq_event] %i %i\n", seq, (int)what);
     event ev;
-    ev.set_channel(eva[1]);
-    ev.set_status(eva[2]);
+    ev.set_status(eva[2], eva[1]);
     ev.set_data(eva[3], eva[4]);
     m_seq_event[seq][what] = ev;
     if (eva[0]) {
@@ -181,7 +179,7 @@ void midi_control_out::set_seq_event(int seq, seq_action what, int *eva)
 
 bool midi_control_out::seq_event_is_active(int seq, seq_action what) const
 {
-    if (seq < 0 || seq >= 32)
+    if (seq < 0 || seq >= m_number_seqs)
     {
         return false;
     } else {
@@ -204,13 +202,7 @@ void midi_control_out::send_event(action what)
 
 event midi_control_out::get_event(action what) const
 {
-    if (event_is_active(what))
-    {
-        return m_event[what];
-    } else {
-        event dummy_event;
-        return dummy_event;
-    }
+    return m_event[what];
 }
 
 std::string midi_control_out::get_event_str(action what) const
@@ -232,7 +224,7 @@ std::string midi_control_out::get_event_str(action what) const
 }
 
 void midi_control_out::set_event(action what, event& ev)
-{    
+{
     if (what < action_max)
     {
         m_event[what] = ev;
@@ -246,14 +238,13 @@ void midi_control_out::set_event(action what, int *eva)
     {
         return;
     }
+    event ev;
+    ev.set_status(eva[2], eva[1]);
+    ev.set_data(eva[3], eva[4]);
+    m_event[what] = ev;
     if (eva[0])
     {
-        // printf("[set_event] %i\n", (int)what);
-        event ev;
-        ev.set_channel(eva[1]);
-        ev.set_status(eva[2]);
-        ev.set_data(eva[3], eva[4]);
-        m_event[what] = ev;
+      // printf("[set_event] %i\n", (int)what);
         m_event_active[what] = true;
     } else {
         m_event_active[what] = false;

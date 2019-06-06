@@ -4649,6 +4649,7 @@ perform::handle_midi_control_ex (int ctl, midi_control::action a, int v)
             result = true;
         }
         break;
+        
     case c_midi_control_oneshot:
 
         if (a == midi_control::action_toggle)
@@ -4674,6 +4675,7 @@ perform::handle_midi_control_ex (int ctl, midi_control::action a, int v)
             unset_sequence_control_status(c_status_oneshot);
             result = true;
         }
+        break;
         
     // using last control for overwrite/reset
     case c_midi_control_19:
