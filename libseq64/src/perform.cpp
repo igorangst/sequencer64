@@ -1857,10 +1857,10 @@ perform::delete_sequence (int seq)
             delete m_seqs[seq];
             m_seqs[seq] = nullptr;
             modify();                               /* it is dirty, man     */
-#ifdef SEQ64_MIDI_CTRL_OUT
-            m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_delete);
-#endif
         }
+#ifdef SEQ64_MIDI_CTRL_OUT
+        m_midi_ctrl_out->send_seq_event(seq, midi_control_out::seq_action_delete);
+#endif
     }
 }
 
@@ -5541,21 +5541,14 @@ perform::set_sequence_control_status (int status)
     m_control_status |= status;
 
 #ifdef SEQ64_MIDI_CTRL_OUT
-    switch (status) {
-    case c_status_queue:
+    if (status | c_status_queue)
         m_midi_ctrl_out->send_event(midi_control_out::action_queue_on);
-        break;
-    case c_status_snapshot:
-        m_midi_ctrl_out->send_event(midi_control_out::action_snap1_store);
-        break;
-    case c_status_replace:
-        m_midi_ctrl_out->send_event(midi_control_out::action_replace_on);
-        break;
-    case c_status_oneshot:
+    if (status | c_status_oneshot)
         m_midi_ctrl_out->send_event(midi_control_out::action_oneshot_on);
-        break;
-    default: break;
-    }
+    if (status | c_status_replace)
+        m_midi_ctrl_out->send_event(midi_control_out::action_replace_on);
+    if (status | c_status_snapshot)
+        m_midi_ctrl_out->send_event(midi_control_out::action_snap1_store);
 #endif
 }
 
@@ -5583,21 +5576,14 @@ perform::unset_sequence_control_status (int status)
     m_control_status &= ~status;
     
 #ifdef SEQ64_MIDI_CTRL_OUT
-    switch (status) {
-    case c_status_queue:
+    if (status | c_status_queue)
         m_midi_ctrl_out->send_event(midi_control_out::action_queue_off);
-        break;
-    case c_status_snapshot:
-        m_midi_ctrl_out->send_event(midi_control_out::action_snap1_restore);
-        break;
-    case c_status_replace:
-        m_midi_ctrl_out->send_event(midi_control_out::action_replace_off);
-        break;
-    case c_status_oneshot:
+    if (status | c_status_oneshot)
         m_midi_ctrl_out->send_event(midi_control_out::action_oneshot_off);
-        break;
-    default: break;
-    }
+    if (status | c_status_replace)
+        m_midi_ctrl_out->send_event(midi_control_out::action_replace_off);
+    if (status | c_status_snapshot)
+        m_midi_ctrl_out->send_event(midi_control_out::action_snap1_restore);
 #endif
 }
 

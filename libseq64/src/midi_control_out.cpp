@@ -88,8 +88,10 @@ std::string seq_action_to_str(midi_control_out::seq_action a)
  * knowledge inside this class, so before sending a sequence event, we
  * check here if the sequence is in the active screen set, otherwise
  * we drop the event. This requires that in the perform class, we do a
- * "repaint" each time the screen set is changed. 
- * 
+ * "repaint" each time the screen set is changed.
+ *
+ * TODO: For now, the size of the screenset is fixed to 32 in this function.
+ *
  * Also, maybe consider adding an option to the config file, making
  * this behavior optional: So either absolute sequence actions (let
  * the receiver do the math...), or sending events relative (modulo)
@@ -162,17 +164,17 @@ void midi_control_out::set_seq_event(int seq, seq_action what, int *eva)
     {
         return;
     }
-    if (eva[0])
-    {
-        // printf("[set_seq_event] %i %i\n", seq, (int)what);
-        event ev;
-        ev.set_channel(eva[1]);
-        ev.set_status(eva[2]);
-        ev.set_data(eva[3], eva[4]);
-        m_seq_event[seq][what] = ev;
-        m_seq_active[seq][what] = true;
+
+    // printf("[set_seq_event] %i %i\n", seq, (int)what);
+    event ev;
+    ev.set_channel(eva[1]);
+    ev.set_status(eva[2]);
+    ev.set_data(eva[3], eva[4]);
+    m_seq_event[seq][what] = ev;
+    if (eva[0]) {
+      m_seq_active[seq][what] = true;
     } else {
-        m_seq_active[seq][what] = false;
+      m_seq_active[seq][what] = false;
     }
 }
 
@@ -234,6 +236,7 @@ void midi_control_out::set_event(action what, event& ev)
     if (what < action_max)
     {
         m_event[what] = ev;
+        m_event_active[what] = true;
     }
 }
 
