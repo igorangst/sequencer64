@@ -1035,11 +1035,11 @@ sequence::toggle_queued ()
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (m_queued)
     {
-        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue);
+      m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue, true);
     } else if (get_playing()) {
-        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm);
+      m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm, true);
     } else {
-        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute);
+      m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute, true);
     }
     
 #endif
@@ -1066,9 +1066,9 @@ sequence::off_queued ()
 #endif
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (get_playing()) {
-        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm);
+      m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_arm, true);
     } else {
-        m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute);
+      m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_mute, true);
     }
 #endif
     set_dirty_mp();
@@ -1091,7 +1091,7 @@ sequence::on_queued ()
     m_queued = true;
     set_dirty_mp();
 #ifdef SEQ64_MIDI_CTRL_OUT
-    m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue);
+    m_parent->get_midi_control_out()->send_seq_event(number(), midi_control_out::seq_action_queue, true);
 #endif
 }
 
@@ -4771,7 +4771,7 @@ sequence::set_playing (bool p)
 #endif
 #ifdef SEQ64_MIDI_CTRL_OUT
     if (send_play)
-        m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::seq_action_arm : midi_control_out::seq_action_mute);
+      m_parent->get_midi_control_out()->send_seq_event(number(), p ? midi_control_out::seq_action_arm : midi_control_out::seq_action_mute, true);
 #endif
 }
 

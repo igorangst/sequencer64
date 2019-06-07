@@ -55,8 +55,12 @@ midi_control_out::midi_control_out (int number_seqs)
     m_screenset_offset(0)
 {
     event dummy_e;
+    m_seq_event = new event*[number_seqs];
+    m_seq_active = new bool*[number_seqs];
     for (int i=0; i<m_number_seqs; ++i)
     {
+        m_seq_event[i] = new event[seq_action_max];
+        m_seq_event[i] = new event[seq_action_max];
         for (int a=0; a<seq_action_max; ++a)
         {
             m_seq_event[i][a] = dummy_e;
@@ -70,7 +74,15 @@ midi_control_out::midi_control_out (int number_seqs)
     }
 }
 
-    
+midi_control_out::~midi_control_out()
+{
+    for (int i=0; i<m_number_seqs; ++i)
+    {
+        delete[] m_seq_event[i];
+    }
+    delete[] m_seq_event;
+}
+
 std::string seq_action_to_str(midi_control_out::seq_action a)
 {
     switch (a)

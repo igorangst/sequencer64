@@ -123,16 +123,14 @@ private:
 
     /**
      *  Provides the events to be sent out for sequence status changes.
-     *  FIXME
      */
-    event m_seq_event[32][seq_action_max];
+    event **m_seq_event;
 
     /**
      *  True if the respective sequence action is active (i.e. has
      *  been set in the configuration file).
-     *  FIXME
      */
-    bool  m_seq_active[32][seq_action_max];
+    bool  **m_seq_active;
 
     /** 
      *  Provides the events to be sent out for non-sequence actions.
@@ -161,6 +159,8 @@ private:
 public:
 
     midi_control_out(int number_seqs = 32);
+
+    ~midi_control_out();
 
     void set_master_bus(mastermidibus* mmbus)
     {
