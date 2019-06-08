@@ -143,24 +143,34 @@ private:
      */
     bool  m_event_active[action_max];
 
-    /** 
+    /**
      *  Current screen set offset. Since the sequences dispatch the
      *  output messages, and sequences don't know shit about
      *  screen-sets, we need to do the math in this class in order to
      *  send screen-set relative events out to external
-     *  controllers. For now, the size of the screen-set is hard-wired
-     *  to 32.
-     * 
-     *  TODO: Make this behavior configurable via optionsfile
-     *  
+     *  controllers.
      */
     int m_screenset_offset;
 
 public:
 
+    /**
+     *  Constructor. Takes the number of sequences to be configured as single
+     *  parameter. At startup, this parameter is read from the optionsfile
+     *  within the [midi-control-out] section.
+     */
     midi_control_out(int number_seqs = 32);
 
+    /**
+     *  Destructor. Needs to be called since we dynamically allocate some arrays
+     *  storing sequence events.
+     */
     ~midi_control_out();
+
+    int get_number_of_sequences() const
+    {
+        return m_number_seqs;
+    }
 
     void set_master_bus(mastermidibus* mmbus)
     {

@@ -394,11 +394,11 @@ optionsfile::parse (perform & p)
      * [midi-control-out]
      */
 
-    line_after(file, "[midi-control-out]");    
+    line_after(file, "[midi-control-out]");
 
     // Sequence actions
     sscanf(m_line, "%u", &sequences);
-    midi_control_out *mctrl = new midi_control_out();
+    midi_control_out *mctrl = new midi_control_out(sequences);
     for (unsigned i=0; i<sequences; ++i)
     {
         if (!next_data_line(file))
@@ -1262,10 +1262,12 @@ optionsfile::write (const perform & p)
         "#    v v v v v\n"
         "#   [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0] [0 0 0 0 0]\n"
         "#       Arm         Mute       Queue      Delete\n"
-        "\n"
-        "32 # Number of sequences\n\n";
+        "\n";
 
-    for (int seq=0; seq<32; ++seq)
+    int sequences = p.m_midi_ctrl_out->get_number_of_sequences();
+    file << sequences << " # Number of sequences\n\n";
+
+    for (int seq=0; seq<sequences; ++seq)
     {
         file << seq;
         for (int a=0; a<midi_control_out::seq_action_max; ++a)

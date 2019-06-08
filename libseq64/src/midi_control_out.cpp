@@ -60,7 +60,7 @@ midi_control_out::midi_control_out (int number_seqs)
     for (int i=0; i<m_number_seqs; ++i)
     {
         m_seq_event[i] = new event[seq_action_max];
-        m_seq_event[i] = new event[seq_action_max];
+        m_seq_active[i] = new bool[seq_action_max];
         for (int a=0; a<seq_action_max; ++a)
         {
             m_seq_event[i][a] = dummy_e;
